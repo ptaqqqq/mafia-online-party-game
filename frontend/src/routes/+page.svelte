@@ -47,7 +47,7 @@
     }
 
     function handleEscape(e: KeyboardEvent) {
-      if (e.key != 'Escape') return;
+      if (e.key !== 'Escape') return;
       
       if (showJoinLobbyModal) {
         cancelJoin();
