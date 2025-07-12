@@ -81,7 +81,7 @@
     <div class="user-list overlay">
       {#each users as u}
         <div class="user-item">
-          <img src="https://avatar.iran.liara.run/public?username={u}" alt="avatar" />
+          <img src="https://avatar.iran.liara.run/public?username={u}" alt="{u}'s avatar" />
           <span>{u}</span>
         </div>
       {/each}
