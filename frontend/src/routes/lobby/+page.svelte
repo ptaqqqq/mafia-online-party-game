@@ -27,7 +27,7 @@
 
   async function sendMessage() {
     if (!newMessage.trim()) return;
-    messages = [...messages, { id: Date.now(), user: 'me', text: newMessage }];
+    messages.push({ id: Date.now(), user: 'me', text: newMessage });
     newMessage = ''
     await tick();
     scrollToBottom(chatContainer)
