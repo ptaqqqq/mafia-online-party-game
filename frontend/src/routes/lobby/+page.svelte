@@ -163,6 +163,10 @@
 
   /* Mobile and tablet: single column */
   @media (max-width: 799px) {
+    :global(body) {
+      overflow-y: auto;
+    }
+
     .main-area {
       gap: 1rem;
       grid-template-rows: 20vh 1fr 15vh;
