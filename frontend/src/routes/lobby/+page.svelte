@@ -68,6 +68,7 @@
         <input
           type="text"
           placeholder="Type your message here..."
+          aria-label="Type your message"
           bind:value={newMessage}
           onkeydown={(e) => e.key === 'Enter' && sendMessage()}
         />
