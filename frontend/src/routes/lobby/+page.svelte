@@ -21,16 +21,16 @@
   /**
      * @type {HTMLDivElement}
      */
-  let chatContainer;
+  let messagesContainer;
   
-  onMount(() => scrollToBottom(chatContainer))
+  onMount(() => scrollToBottom(messagesContainer))
 
   async function sendMessage() {
     if (!newMessage.trim()) return;
     messages.push({ id: Date.now(), user: 'me', text: newMessage });
     newMessage = ''
     await tick();
-    scrollToBottom(chatContainer)
+    scrollToBottom(messagesContainer)
   }
 
   // @ts-ignore
@@ -53,8 +53,8 @@
     </div>
     
     <!-- Chat Messages -->
-    <div class="chat-area">
-      <div class="chat-container overlay" bind:this={chatContainer}>
+    <div class="chat-container">
+      <div class="messages-container overlay" bind:this={messagesContainer}>
         {#each messages as msg}
           <div class="message-card">
             <strong>{msg.user}</strong>
@@ -177,7 +177,7 @@
     width: auto;
   }
 
-  .chat-area {
+  .chat-container {
     width: auto;
     display: flex;
     flex-direction: column;
@@ -187,7 +187,7 @@
     padding: 1rem;
   }
 
-  .chat-container {
+  .messages-container {
     width: 99%;
     height: 100%;
     min-height: 10vh;
