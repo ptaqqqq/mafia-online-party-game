@@ -1,42 +1,21 @@
 <script>
-  import { onMount, tick } from 'svelte';
-  // dummy data
-  let gameTheme = $state('Game Theme')
+  import Chat from '$lib/components/Chat.svelte';
 
+  // dummy data
+  let messages = $state([
+    { 'id': 1, 'user': 'user_1234', 'text': 'Hello, world!'},
+    { 'id': 2, 'user': 'user_1234', 'text': 'Hello, world!'},
+    { 'id': 3, 'user': 'user_1234', 'text': 'Hello, world!'},
+    { 'id': 4, 'user': 'user_1234', 'text': 'Hello, world!'},
+  ])
+  let newMessage = $state('');
+  let gameTheme = $state('Game Theme')
   let lobbySettings = $state({
     code: 'ABCDEF',
     votingTime: 60,
     mafiosi: 3
   });
-  
-  let messages = $state([
-  { id: 1, user: 'user_1234', text: 'Hello, world!'},
-  { id: 2, user: 'user_1234', text: 'Hello, world!'},
-  { id: 3, user: 'user_1234', text: 'Hello, world!'},
-  { id: 4, user: 'user_1234', text: 'Hello, world!'},
-  ]);
-  
   let users = Array.from({ length: 10 }, () => 'user_' + Math.floor(Math.random() * 10000));
-  let newMessage = $state('');
-  /**
-     * @type {HTMLDivElement}
-     */
-  let messagesContainer;
-  
-  onMount(() => scrollToBottom(messagesContainer))
-
-  async function sendMessage() {
-    if (!newMessage.trim()) return;
-    messages.push({ id: Date.now(), user: 'me', text: newMessage });
-    newMessage = ''
-    await tick();
-    scrollToBottom(messagesContainer)
-  }
-
-  // @ts-ignore
-  const scrollToBottom = async (node) => {
-    node.scroll({ top: node.scrollHeight, behavior: 'smooth' });
-  }
 </script>
 
 <header>
@@ -53,30 +32,7 @@
     </div>
     
     <!-- Chat Messages -->
-    <div class="chat-container">
-      <div class="messages-container overlay" bind:this={messagesContainer}>
-        {#each messages as msg}
-          <div class="message-card">
-            <strong>{msg.user}</strong>
-            <p>{msg.text}</p>
-          </div>
-        {/each}
-      </div>
-
-      <!-- Input -->
-      <div class="input-area overlay">
-        <input
-          type="text"
-          placeholder="Type your message here..."
-          aria-label="Type your message"
-          bind:value={newMessage}
-          onkeydown={(e) => e.key === 'Enter' && sendMessage()}
-        />
-        <button class="send-btn" onclick={sendMessage}>
-          ↩
-        </button>
-      </div>
-    </div>
+    <Chat {messages} />
 
     <!-- User List -->
     <div class="user-list overlay">
@@ -101,6 +57,17 @@
     overflow: hidden;
   }
 
+  :global(.overlay) {
+    background: rgba(255, 255, 255, 0.8);
+    backdrop-filter: blur(6px);
+    border-radius: 1rem;
+    padding: 1rem;
+    margin: 1rem;
+    height: auto;
+    align-self: center;
+    border: 1px solid black;
+  }
+
   header {
     position: relative;
     width: 100%;
@@ -119,17 +86,6 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-  }
-
-  .overlay {
-    background: rgba(255, 255, 255, 0.8);
-    backdrop-filter: blur(6px);
-    border-radius: 1rem;
-    padding: 1rem;
-    margin: 1rem;
-    height: auto;
-    align-self: center;
-    border: 1px solid black;
   }
 
   .main-area {
@@ -177,41 +133,6 @@
     width: auto;
   }
 
-  .chat-container {
-    width: auto;
-    display: flex;
-    flex-direction: column;
-    height: 100%;
-    overflow-y: hidden;
-    overflow-x: hidden;
-    padding: 1rem;
-  }
-
-  .messages-container {
-    width: 99%;
-    height: 100%;
-    min-height: 10vh;
-    max-height: 100%;
-    overflow-y: auto;
-    display: flex;
-    flex-direction: column;
-    gap: 0.75rem;
-    padding: 1rem;
-  }
-
-  .message-card {
-    background: white;
-    border-radius: 0.75rem;
-    border: 1px solid black;
-    padding: 0.75rem;
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
-  }
-
-  .message-card strong {
-    display: block;
-    margin-bottom: 0.25rem;
-  }
-
   .user-list {
     width: auto;
     height: auto;
@@ -232,41 +153,5 @@
     border-radius: 50%;
     width: 32px;
     height: 32px;
-  }
-
-  .input-area {
-    width: 100%;
-    min-height: 2rem;
-    display: flex;
-    gap: 0.5rem;
-    height: 10%;
-    padding: 0.75rem;
-    margin-top: 0;
-  }
-
-  .input-area input {
-    flex: 1;
-    width: 100%;
-    border: none;
-    outline: none;
-    padding: 0.75rem 1rem;
-    border-radius: 0.75rem;
-    font-size: 1rem;
-    background: rgba(255, 255, 255, 0.9);
-  }
-
-  .send-btn {
-    border: none;
-    border-radius: 0.75rem;
-    height: auto;
-    font-size: 1.25rem;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: #28a745;
-    color: white;
-    padding-left: 1rem;
-    padding-right: 1rem;
   }
 </style>
