@@ -1,5 +1,6 @@
 <script>
   import Chat from '$lib/components/Chat.svelte';
+  import LobbyInfo from '$lib/components/LobbyInfo.svelte';
 
   // dummy data
   let messages = $state([
@@ -24,14 +25,10 @@
 
 <main>
   <div class="main-area">
-    <!-- Lobby Info -->
     <div class="lobby-info overlay">
-      {#each Object.entries(lobbySettings) as [key, value]}
-        <p><strong>{key}:</strong> {value}</p>
-      {/each}
+      <LobbyInfo {lobbySettings} />
     </div>
-    
-    <!-- Chat Messages -->
+
     <Chat {messages} />
 
     <!-- User List -->
