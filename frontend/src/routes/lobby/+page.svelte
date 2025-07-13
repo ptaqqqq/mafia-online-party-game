@@ -1,6 +1,7 @@
 <script>
   import Chat from '$lib/components/Chat.svelte';
   import LobbyInfo from '$lib/components/LobbyInfo.svelte';
+  import UserList from '$lib/components/UserList.svelte';
 
   // dummy data
   let messages = $state([
@@ -16,7 +17,7 @@
     votingTime: 60,
     mafiosi: 3
   });
-  let users = Array.from({ length: 10 }, () => 'user_' + Math.floor(Math.random() * 10000));
+  let users = $state(Array.from({ length: 10 }, () => 'user_' + Math.floor(Math.random() * 10000)));
 </script>
 
 <header>
@@ -33,12 +34,7 @@
 
     <!-- User List -->
     <div class="user-list overlay">
-      {#each users as u}
-        <div class="user-item">
-          <img src="https://avatar.iran.liara.run/public?username={u}" alt="{u}'s avatar" />
-          <span>{u}</span>
-        </div>
-      {/each}
+      <UserList {users} />
     </div>
   </div>
 
@@ -138,17 +134,5 @@
     display: flex;
     flex-direction: column;
     gap: 0.5rem;
-  }
-
-  .user-item {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-  }
-
-  .user-item img {
-    border-radius: 50%;
-    width: 32px;
-    height: 32px;
   }
 </style>
