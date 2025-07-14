@@ -1,13 +1,11 @@
 <script>
   import { onMount, tick } from 'svelte';
+  import { fade } from 'svelte/transition';
   import Chat from '$lib/components/Chat.svelte'
-    import { fade } from 'svelte/transition';
+  import LobbyInfo from '$lib/components/LobbyInfo.svelte';
+  import UserList from '$lib/components/UserList.svelte';
 
-  let messages = $state([
-    { 'id': 1, 'user': 'user_1234', 'text': 'Hello, world!' }
-  ]);
-  let showChatModal = $state(true);
-
+  /// Text stream ///
   let streamedText = $state([
     { 'id': 1, 'text': 'Lorem ipsum dolor sit amet.' },
     { 'id': 2, 'text': 'Wlazł kotek na płotek.' },
@@ -28,17 +26,33 @@
     scrollToBottom(textStream);
   }
 
-  onMount(() => scrollToBottom(textStream))
+  onMount(() => scrollToBottom(textStream));
 
   // @ts-ignore
   const scrollToBottom = async (node) => {
     node.scroll({ top: node.scrollHeight, behavior: 'smooth' });
   }
 
+  /// Chat modal ///
+  let messages = $state([
+    { 'id': 1, 'user': 'user_1234', 'text': 'Hello, world!' }
+  ]);
+  let showChatModal = $state(true);
+
   let sendMessageHandler = (/** @type {string} */ msgText) => {
     messages.push({ 'id': Date.now(), 'user': 'me', 'text': msgText });
     addTextToStream({ 'id': Date.now(), 'text': msgText });
   };
+
+  /// Game info ///
+  let gameInfo = $state({
+    'lobbyCode': 'ABCDEF',
+    'day': 3,
+    'hour': '3:00 am'
+  })
+  
+  /// User list ///
+  let users = $state(Array.from({ length: 10 }, () => 'user_' + Math.floor(Math.random() * 10000)));
 </script>
 
 {#if showChatModal}
@@ -48,13 +62,22 @@
 {/if}
 
 <main>
-  <div class="text-stream overlay" bind:this={textStream}>
-    <h1>Game Theme</h1>
-    {#each streamedText as streamed (streamed.id)}
-      <div class="text-stream-element" transition:fade >
-        <p>{streamed.text}</p>
-      </div>
-    {/each}
+  <div class="main-area">
+    <div class="lobby-info overlay">
+      <LobbyInfo lobbySettings={gameInfo} />
+    </div>
+    <div class="text-stream overlay" bind:this={textStream}>
+      <h1>Game Theme</h1>
+      {#each streamedText as streamed (streamed.id)}
+        <div class="text-stream-element" transition:fade >
+          <p>{streamed.text}</p>
+        </div>
+      {/each}
+    </div>
+
+    <div class="user-list overlay">
+      <UserList {users} />
+    </div>
   </div>
 </main>
 
@@ -100,11 +123,68 @@
     margin: 1rem;
   }
 
+
+  .main-area {
+    flex: 1;
+    flex-shrink: 0;
+    overflow-y: hidden;
+    display: grid;
+    padding: 1rem;
+    margin: 1rem;
+    align-items: center;
+    width: 90%;
+    max-height: 100%;
+    height: 100%;
+    grid-template-rows: 1fr;
+  }
+
+  /* Desktop: fixed sidebars, flexible centre */
+  @media (min-width: 800px) {
+    .main-area {
+      gap: 3rem;
+      grid-template-columns:
+        /* left  */ 20vw
+        /* centre*/ 1fr
+        /* right */ 20vw;
+    }
+    .lobby-info, 
+    .user-list {
+      transform: translateY(-5vh);
+    }
+  }
+
+  /* Mobile and tablet: single column */
+  @media (max-width: 799px) {
+    :global(body) {
+      overflow-y: auto;
+    }
+
+    .main-area {
+      gap: 1rem;
+      grid-template-rows: 20vh 1fr 15vh;
+    }
+  }
+
   .text-stream {
     display: flex;
     flex-direction: column;
     overflow-y: hidden;
+    height: 80%;
     max-height: 100%;
-    max-width: 50%;
+    max-width: 100%;
+  }
+
+  .lobby-info {
+    width: auto;
+  }
+
+  .user-list {
+    width: auto;
+    height: auto;
+    max-height: 100%;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
   }
 </style>
