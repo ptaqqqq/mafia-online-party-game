@@ -57,7 +57,15 @@
   /// Voting ///
   let showVoting = $state(true);
   let votingPrompt = $state('Eliminate user?');
-  let votingEnd = $state(Date.now() +  60 * 1000);
+  let votingEnd = $state(Date.now() + 15 * 1000);
+  let now = $state(Date.now());
+  onMount(() => {
+    const id = setInterval(() => {
+      now = Date.now()
+    }, 500); // 500 for smoother display
+    return () => clearInterval(id);
+  });
+  let votingMillisecondsLeft = $derived(Math.max(votingEnd - now, 0));
   let votingOptions = $state([
     'user_0123',
     'user_1234',
@@ -71,6 +79,28 @@
     'user_0123': 2,
     'user_5555': 1
   });
+  $inspect(votingEnd);
+
+
+  /**
+     * @param {number} ms
+     */
+  function formatDuration(ms) {
+    const totalSeconds = Math.floor(ms / 1000);
+    const seconds = totalSeconds % 60;
+    const totalMinutes = Math.floor(totalSeconds / 60);
+    const minutes = totalMinutes % 60;
+    const hours = Math.floor(totalMinutes / 60);
+
+    // pad to 2 digits:
+    const s = String(seconds).padStart(2,'0');
+    const m = String(minutes).padStart(2,'0');
+    const h = String(hours).padStart(2,'0');
+
+    return hours
+      ? `${h}:${m}:${s}`
+      : `${m}:${s}`;
+  }
 </script>
 
 {#if showChatModal}
@@ -114,6 +144,8 @@
             {/each}
           </button>
         {/each}
+
+        <span>{formatDuration(votingMillisecondsLeft)}</span>
       {/if}
     </div>
 
