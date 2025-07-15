@@ -66,6 +66,7 @@
   ]);
   let votingSelectedByPlayer = $state('');
   $inspect(votingSelectedByPlayer).with(console.debug);
+  /** @type {Record<string, number>} */
   let votingSelectedByOthers = $state({
     'user_0123': 2,
     'user_5555': 1
@@ -93,7 +94,25 @@
 
       {#if showVoting}
         {#each votingOptions as option}
-        <button onclick={() => {votingSelectedByPlayer = option}}>{option}</button>
+          <button onclick={() => {votingSelectedByPlayer = option}}>
+            {#each Array(votingSelectedByOthers[option] ?? 0) as _, i}
+            <span>[</span>
+            {/each}
+
+            {#if votingSelectedByPlayer === option}
+            <span>(</span>
+            {/if}
+
+            {option}
+
+            {#if votingSelectedByPlayer === option}
+            <span>)</span>
+            {/if}
+
+            {#each Array(votingSelectedByOthers[option] ?? 0) as _, i}
+            <span>]</span>
+            {/each}
+          </button>
         {/each}
       {/if}
     </div>
