@@ -26,8 +26,10 @@
     scrollToBottom(textStream);
   }
 
-  onMount(() => scrollToBottom(textStream));
-  window.addEventListener('resize', () => { scrollToBottom(textStream) });
+  onMount(() => {
+    scrollToBottom(textStream)
+    window.addEventListener('resize', () => { scrollToBottom(textStream) });
+  });
 
   // @ts-ignore
   const scrollToBottom = async (node) => {
