@@ -79,7 +79,12 @@
     'user_0123': 2,
     'user_5555': 1
   });
-  $inspect(votingEnd);
+  const votingSelectHandler = (/** @type {any} */ option) => {
+    if (votingMillisecondsLeft > 0) {
+      console.debug('Selected vote for', option);
+      votingSelectedByPlayer = option;
+    }
+  }
 
 
   /**
@@ -124,9 +129,9 @@
 
       {#if showVoting}
         <p><strong>{votingPrompt}</strong></p>
-        
+
         {#each votingOptions as option}
-          <button onclick={() => {votingSelectedByPlayer = option}}>
+          <button onclick={() => { votingSelectHandler(option); }}>
             {#each Array(votingSelectedByOthers[option] ?? 0) as _, i}
             <span>[</span>
             {/each}
