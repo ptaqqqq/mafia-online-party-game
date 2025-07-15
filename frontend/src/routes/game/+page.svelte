@@ -1,26 +1,26 @@
 <script>
   import { onMount, tick } from 'svelte';
   import { fade } from 'svelte/transition';
-  import Chat from '$lib/components/Chat.svelte'
+  import Chat from '$lib/components/Chat.svelte';
   import LobbyInfo from '$lib/components/LobbyInfo.svelte';
   import UserList from '$lib/components/UserList.svelte';
 
   /// Text stream ///
   let streamedText = $state([
-    { 'id': 1, 'text': 'Lorem ipsum dolor sit amet.' },
-    { 'id': 2, 'text': 'Wlazł kotek na płotek.' },
-    { 'id': 3, 'text': 'Litwo, ojczyzno moja.' },
-    { 'id': 4, 'text': 'To be or not to be.' }
+    { id: 1, text: 'Lorem ipsum dolor sit amet.' },
+    { id: 2, text: 'Wlazł kotek na płotek.' },
+    { id: 3, text: 'Litwo, ojczyzno moja.' },
+    { id: 4, text: 'To be or not to be.' },
   ]);
   /**
-    * @type {HTMLDivElement}
-    */
+   * @type {HTMLDivElement}
+   */
   let textStream;
 
   /**
-    * @param {{ id: number; text: string; }} textObj
-    */
-   export async function addTextToStream(textObj) {
+   * @param {{ id: number; text: string; }} textObj
+   */
+  export async function addTextToStream(textObj) {
     streamedText.push(textObj);
     tick();
     scrollToBottom(textStream);
@@ -31,65 +31,71 @@
   // @ts-ignore
   const scrollToBottom = async (node) => {
     node.scroll({ top: node.scrollHeight, behavior: 'smooth' });
-  }
+  };
 
   /// Chat modal ///
-  let messages = $state([
-    { 'id': 1, 'user': 'user_1234', 'text': 'Hello, world!' }
-  ]);
+  let messages = $state([{ id: 1, user: 'user_1234', text: 'Hello, world!' }]);
   let showChatModal = $state(false);
 
   let sendMessageHandler = (/** @type {string} */ msgText) => {
-    messages.push({ 'id': Date.now(), 'user': 'me', 'text': msgText });
-    addTextToStream({ 'id': Date.now(), 'text': msgText });
+    messages.push({ id: Date.now(), user: 'me', text: msgText });
+    // TODO: Debug only, disable later
+    addTextToStream({ id: Date.now(), text: msgText });
   };
 
   /// Game info ///
   let gameInfo = $state({
-    'lobbyCode': 'ABCDEF',
-    'day': 3,
-    'hour': '3:00 am'
+    lobbyCode: 'ABCDEF',
+    day: 3,
+    hour: '3:00 am',
   });
-  
+
   /// User list ///
-  let users = $state(Array.from({ length: 10 }, () => 'user_' + Math.floor(Math.random() * 10000)));
+  let users = $state(
+    Array.from(
+      { length: 10 },
+      () => 'user_' + Math.floor(Math.random() * 10000),
+    ),
+  );
 
   /// Voting ///
   let showVoting = $state(true);
+
   let votingPrompt = $state('Eliminate user?');
-  let votingEnd = $state(Date.now() + 15 * 1000);
-  let now = $state(Date.now());
-  onMount(() => {
-    const id = setInterval(() => {
-      now = Date.now()
-    }, 500); // 500 for smoother display
-    return () => clearInterval(id);
-  });
-  let votingMillisecondsLeft = $derived(Math.max(votingEnd - now, 0));
   let votingOptions = $state([
     'user_0123',
     'user_1234',
     'user_6789',
-    'user_5555'
+    'user_5555',
   ]);
-  let votingSelectedByPlayer = $state('');
-  $inspect(votingSelectedByPlayer).with(console.debug);
+  let votingEnd = $state(Date.now() + 15 * 1000);
+
+  let now = $state(Date.now());
+  onMount(() => {
+    const id = setInterval(() => {
+      now = Date.now();
+    }, 500); // 500 for smoother display
+    return () => clearInterval(id);
+  });
+  let votingMillisecondsLeft = $derived(Math.max(votingEnd - now, 0));
+
+  let votingSelectedByPlayer = $state("");
   /** @type {Record<string, number>} */
   let votingSelectedByOthers = $state({
     'user_0123': 2,
-    'user_5555': 1
+    'user_5555': 1,
   });
+
   const votingSelectHandler = (/** @type {any} */ option) => {
     if (votingMillisecondsLeft > 0) {
       console.debug('Selected vote for', option);
       votingSelectedByPlayer = option;
     }
-  }
-
+  };
 
   /**
-     * @param {number} ms
-     */
+   * @param {number} ms
+   */
   function formatDuration(ms) {
     const totalSeconds = Math.floor(ms / 1000);
     const seconds = totalSeconds % 60;
@@ -98,13 +104,11 @@
     const hours = Math.floor(totalMinutes / 60);
 
     // pad to 2 digits:
-    const s = String(seconds).padStart(2,'0');
-    const m = String(minutes).padStart(2,'0');
-    const h = String(hours).padStart(2,'0');
+    const s = String(seconds).padStart(2, '0');
+    const m = String(minutes).padStart(2, '0');
+    const h = String(hours).padStart(2, '0');
 
-    return hours
-      ? `${h}:${m}:${s}`
-      : `${m}:${s}`;
+    return hours ? `${h}:${m}:${s}` : `${m}:${s}`;
   }
 </script>
 
@@ -122,7 +126,7 @@
     <div class="text-stream overlay" bind:this={textStream}>
       <h1>Game Theme</h1>
       {#each streamedText as streamed (streamed.id)}
-        <div class="text-stream-element" transition:fade >
+        <div class="text-stream-element" transition:fade>
           <p>{streamed.text}</p>
         </div>
       {/each}
@@ -131,23 +135,27 @@
         <p><strong>{votingPrompt}</strong></p>
 
         {#each votingOptions as option}
-          <button onclick={() => { votingSelectHandler(option); }}>
+          <button
+            onclick={() => {
+              votingSelectHandler(option);
+            }}
+          >
             {#each Array(votingSelectedByOthers[option] ?? 0) as _, i}
-            <span>[</span>
+              <span>[</span>
             {/each}
 
             {#if votingSelectedByPlayer === option}
-            <span>(</span>
+              <span>(</span>
             {/if}
 
             {option}
 
             {#if votingSelectedByPlayer === option}
-            <span>)</span>
+              <span>)</span>
             {/if}
 
             {#each Array(votingSelectedByOthers[option] ?? 0) as _, i}
-            <span>]</span>
+              <span>]</span>
             {/each}
           </button>
         {/each}
@@ -164,7 +172,7 @@
 
 <style>
   :global(body) {
-    background: url('/city-theme-bg.png') center/cover no-repeat;
+    background: url("/city-theme-bg.png") center/cover no-repeat;
     margin: 0;
     padding: 0;
     font-family: sans-serif;
@@ -183,13 +191,14 @@
     border: 1px solid black;
   }
 
-
   /* modal overlay */
   .modal {
     position: fixed;
-    top: 0; left: 0;
-    width: 100vw; height: 100vh;
-    background: rgba(0,0,0,0.6);
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(0, 0, 0, 0.6);
     display: flex;
     justify-content: center;
     align-items: center;
@@ -203,7 +212,6 @@
     padding: 1rem;
     margin: 1rem;
   }
-
 
   .main-area {
     flex: 1;
@@ -224,11 +232,12 @@
     .main-area {
       gap: 3rem;
       grid-template-columns:
-        /* left  */ 20vw
+        /* left  */
+        20vw
         /* centre*/ 1fr
         /* right */ 20vw;
     }
-    .lobby-info, 
+    .lobby-info,
     .user-list {
       transform: translateY(-5vh);
     }
