@@ -123,6 +123,8 @@
       {/each}
 
       {#if showVoting}
+        <p><strong>{votingPrompt}</strong></p>
+        
         {#each votingOptions as option}
           <button onclick={() => {votingSelectedByPlayer = option}}>
             {#each Array(votingSelectedByOthers[option] ?? 0) as _, i}
