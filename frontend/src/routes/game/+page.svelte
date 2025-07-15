@@ -37,7 +37,7 @@
   let messages = $state([
     { 'id': 1, 'user': 'user_1234', 'text': 'Hello, world!' }
   ]);
-  let showChatModal = $state(true);
+  let showChatModal = $state(false);
 
   let sendMessageHandler = (/** @type {string} */ msgText) => {
     messages.push({ 'id': Date.now(), 'user': 'me', 'text': msgText });
@@ -49,10 +49,27 @@
     'lobbyCode': 'ABCDEF',
     'day': 3,
     'hour': '3:00 am'
-  })
+  });
   
   /// User list ///
   let users = $state(Array.from({ length: 10 }, () => 'user_' + Math.floor(Math.random() * 10000)));
+
+  /// Voting ///
+  let showVoting = $state(true);
+  let votingPrompt = $state('Eliminate user?');
+  let votingEnd = $state(Date.now() +  60 * 1000);
+  let votingOptions = $state([
+    'user_0123',
+    'user_1234',
+    'user_6789',
+    'user_5555'
+  ]);
+  let votingSelectedByPlayer = $state('');
+  $inspect(votingSelectedByPlayer).with(console.debug);
+  let votingSelectedByOthers = $state({
+    'user_0123': 2,
+    'user_5555': 1
+  });
 </script>
 
 {#if showChatModal}
@@ -73,6 +90,12 @@
           <p>{streamed.text}</p>
         </div>
       {/each}
+
+      {#if showVoting}
+        {#each votingOptions as option}
+        <button onclick={() => {votingSelectedByPlayer = option}}>{option}</button>
+        {/each}
+      {/if}
     </div>
 
     <div class="user-list overlay">
