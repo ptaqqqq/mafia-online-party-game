@@ -33,6 +33,7 @@ class GameState:
     def __init__(self):
         self.phase: Phase = Phase.NIGHT
         self.players: Dict[str, PlayerState] = {}
+        self.winner: Optional[GameWinner] = None
 
     def add_player(self, uuid: str, player_state: PlayerState):
         self.players[uuid] = player_state
@@ -55,7 +56,7 @@ class GameState:
                 raise ValueError("Player {suspected_player} not found!")
             self.players[suspected_player_id]["alive"] = False
 
-        if self.check_game_over() is not None:
+        if self.check_game_over():
             self.phase = Phase.ENDED
         else:
             self.phase = Phase.NIGHT
@@ -69,7 +70,7 @@ class GameState:
                 raise ValueError("Player {suspected_player} not found!")
             self.players[targeted_player_id]["alive"] = False
 
-        if self.check_game_over() is not None:
+        if self.check_game_over():
             self.phase = Phase.ENDED
         else:
             self.phase = Phase.DAY
@@ -86,10 +87,14 @@ class GameState:
 
         if mafia == 0:
             if innocents == 0:
-                return GameWinner.DRAW
+                self.winner = GameWinner.DRAW
+                return True
             else:
-                return GameWinner.INNOCENT
+                self.winner = GameWinner.INNOCENT
+                return True
         elif mafia >= innocents:
-            return GameWinner.MAFIA
+            self.winner = GameWinner.MAFIA
+            return True
         else:
-            return None
+            self.winner = None
+            return False
