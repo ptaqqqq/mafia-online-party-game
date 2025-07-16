@@ -6,6 +6,10 @@ from pydantic import Field
 from fastapi_camelcase import CamelModel
 
 
+class GameEvent(CamelModel):
+    pass
+
+
 # Player events
 
 
@@ -14,7 +18,7 @@ class PlayerJoinPayload(CamelModel):
     name: str = Field(..., description="Display name")
 
 
-class PlayerJoin(CamelModel):
+class PlayerJoin(GameEvent):
     type: Literal["player.join"]
     payload: PlayerJoinPayload
 
@@ -23,7 +27,7 @@ class PlayerLeavePayload(CamelModel):
     player_id: str = Field(..., description="UUID of the leaving player")
 
 
-class PlayerLeave(CamelModel):
+class PlayerLeave(GameEvent):
     type: Literal["player.leave"]
     payload: PlayerLeavePayload
 
@@ -33,7 +37,7 @@ class PlayerJoinedPayload(CamelModel):
     name: str = Field(..., description="Display name")
 
 
-class PlayerJoined(CamelModel):
+class PlayerJoined(GameEvent):
     type: Literal["player.joined"]
     payload: PlayerJoinedPayload
 
@@ -42,7 +46,7 @@ class PlayerLeftPayload(CamelModel):
     player_id: str = Field(..., description="UUID of the player who left")
 
 
-class PlayerLeft(CamelModel):
+class PlayerLeft(GameEvent):
     type: Literal["player.left"]
     payload: PlayerLeftPayload
 
@@ -56,7 +60,7 @@ class NightActionPayload(CamelModel):
     target_id: str = Field(..., description="UUID of the targeted player")
 
 
-class NightAction(CamelModel):
+class NightAction(GameEvent):
     type: Literal["action.night"]
     payload: NightActionPayload
 
@@ -66,7 +70,7 @@ class VotePayload(CamelModel):
     target_id: str = Field(..., description="UUID of the player voted on")
 
 
-class Vote(CamelModel):
+class Vote(GameEvent):
     type: Literal["action.vote"]
     payload: VotePayload
 
@@ -76,7 +80,7 @@ class ActionAckPayload(CamelModel):
     message: Optional[str] = None
 
 
-class ActionAck(CamelModel):
+class ActionAck(GameEvent):
     type: Literal["action.ack"]
     payload: ActionAckPayload
 
@@ -85,7 +89,7 @@ class MorningNewsPayload(CamelModel):
     target_id: str = Field(..., description="UUID of the killed player")
 
 
-class MorningNews(CamelModel):
+class MorningNews(GameEvent):
     type: Literal["action.news"]
     payload: MorningNewsPayload
 
@@ -95,7 +99,7 @@ class VoteCastPayload(CamelModel):
     target_id: str = Field(..., description="UUID of the player voted on")
 
 
-class VoteCast(CamelModel):
+class VoteCast(GameEvent):
     type: Literal["action.vote_cast"]
     payload: VoteCastPayload
 
@@ -108,7 +112,7 @@ class PhaseChangePayload(CamelModel):
     ends_at: datetime = Field(..., description="When this phase ends (ISO timestamp)")
 
 
-class PhaseChange(CamelModel):
+class PhaseChange(GameEvent):
     type: Literal["phase.change"]
     payload: PhaseChangePayload
 
@@ -124,12 +128,12 @@ class MessagePayload(CamelModel):
     text: str = Field(..., description="Text content of the message")
 
 
-class SendMessage(CamelModel):
+class SendMessage(GameEvent):
     type: Literal["message.send"]
     payload: MessagePayload
 
 
-class MessageReceived(CamelModel):
+class MessageReceived(GameEvent):
     type: Literal["message.received"]
     payload: MessagePayload
 
@@ -168,6 +172,6 @@ class GameStatePayload(CamelModel):
     )
 
 
-class GameState(CamelModel):
+class GameState(GameEvent):
     type: Literal["game.state"]
     payload: GameStatePayload
