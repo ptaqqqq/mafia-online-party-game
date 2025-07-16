@@ -9,7 +9,7 @@ from pydantic import Field, ValidationError
 from schemas.game import (
     ActionAck,
     ActionAckPayload,
-    GameState,
+    GameStateSync,
     MessageReceived,
     MorningNews,
     NightAction,
@@ -41,7 +41,7 @@ OutgoingEvent = (
     | VoteCast
     | PhaseChange
     | MessageReceived
-    | GameState
+    | GameStateSync
 )
 
 
