@@ -60,6 +60,14 @@
       () => "user_" + Math.floor(Math.random() * 10000),
     ),
   );
+  let eliminated = $state([
+    users[0],
+    users[3]
+  ]);
+  let mafiosi = $state([
+    users[2],
+    users[3]
+  ]);
 
   /// Voting ///
   let showVoting = $state(true);
@@ -173,7 +181,7 @@
     </div>
 
     <div class="user-list overlay">
-      <UserList {users} />
+      <UserList {users} {mafiosi} {eliminated}/>
     </div>
   </div>
 </main>
