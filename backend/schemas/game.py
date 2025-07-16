@@ -90,8 +90,18 @@ class MorningNewsPayload(CamelModel):
 
 
 class MorningNews(GameEvent):
-    type: Literal["action.news"]
+    type: Literal["action.morning_news"]
     payload: MorningNewsPayload
+
+
+class EveningNewsPayload(CamelModel):
+    target_id: str = Field(..., description="UUID of the ostracized player")
+
+
+class EveningNews(GameEvent):
+    type: Literal["action.evening_news"]
+    payload: EveningNewsPayload
+
 
 
 class VoteCastPayload(CamelModel):
@@ -161,8 +171,8 @@ class GameStateSyncPayload(CamelModel):
     phase: Literal["day", "night", "voting", "ended"] = Field(
         ..., description="Current game phase"
     )
-    votes: Optional[Dict[str, int]] = Field(
-        None, description="Maps target: count during voting phase"
+    votes: Optional[Dict[str, str]] = Field(
+        None, description="Maps voter: target during voting phase"
     )
     winner: Optional[Literal["mafia", "innocents", "draw"]] = Field(
         None, description="Who won the game (if it ended)"
