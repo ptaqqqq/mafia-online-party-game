@@ -156,7 +156,7 @@ class GameLogEntry(CamelModel):
     details: Dict[str, Any] = Field(..., description="Payload of the event")
 
 
-class GameStatePayload(CamelModel):
+class GameStateSyncPayload(CamelModel):
     players: List[PlayerState]
     phase: Literal["day", "night", "voting", "ended"] = Field(
         ..., description="Current game phase"
@@ -172,6 +172,6 @@ class GameStatePayload(CamelModel):
     )
 
 
-class GameState(GameEvent):
+class GameStateSync(GameEvent):
     type: Literal["game.state"]
-    payload: GameStatePayload
+    payload: GameStateSyncPayload
