@@ -15,7 +15,7 @@ class Role(Enum):
 
 
 class GameWinner(Enum):
-    INNOCENT = "innocent"
+    INNOCENT = "innocents"
     MAFIA = "mafia"
     DRAW = "draw"
 
