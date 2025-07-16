@@ -46,7 +46,7 @@ OutgoingEvent = (
 
 
 class WSIncomingMessage(CamelModel):
-    __root__: IncomingEvent
+    message: IncomingEvent = Field(..., discriminator="type")
 
 
 router = APIRouter()
@@ -84,7 +84,7 @@ async def websocket_endpoint(ws: WebSocket, room_id: str):
         while True:
             msg = await ws.receive_json()
             wrapper = WSIncomingMessage.model_validate(msg)
-            event = wrapper.__root__
+            event = wrapper.message
 
             # TODO: refactor
             if isinstance(event, PlayerJoin):
