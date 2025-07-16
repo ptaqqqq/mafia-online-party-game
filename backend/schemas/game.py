@@ -154,11 +154,14 @@ class GameLogEntry(CamelModel):
 
 class GameStatePayload(CamelModel):
     players: List[PlayerState]
-    phase: Literal["day", "night", "voting"] = Field(
+    phase: Literal["day", "night", "voting", "ended"] = Field(
         ..., description="Current game phase"
     )
     votes: Optional[Dict[str, str]] = Field(
         None, description="Maps actor: target during voting phase"
+    )
+    winner: Optional[Literal["mafia", "innocents", "draw"]] = Field(
+        None, description="Who won the game (if it ended)"
     )
     logs: List[GameLogEntry] = Field(
         ..., description="Past game events, chronologically"
