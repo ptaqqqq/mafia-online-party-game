@@ -5,6 +5,14 @@
   import LobbyInfo from "$lib/components/LobbyInfo.svelte";
   import UserList from "$lib/components/UserList.svelte";
 
+  let now = $state(Date.now());
+  onMount(() => {
+    const id = setInterval(() => {
+      now = Date.now();
+    }, 500); // 500 for smoother display
+    return () => clearInterval(id);
+  });
+
   /// Text stream ///
   let streamedText = $state([
     { id: 1, text: "Lorem ipsum dolor sit amet." },
@@ -38,7 +46,9 @@
 
   /// Chat modal ///
   let messages = $state([{ id: 1, user: "user_1234", text: "Hello, world!" }]);
-  let showChatModal = $state(false);
+  let chatEnd = $state(Date.now() + 15 * 1000);
+  let chatMillisecondsLeft = $derived(Math.max(0, chatEnd - now));
+  let showChatModal = $derived(chatMillisecondsLeft > 0);
 
   let sendMessageHandler = (/** @type {string} */ msgText) => {
     messages.push({ id: Date.now(), user: "me", text: msgText });
@@ -79,15 +89,7 @@
     "user_6789",
     "user_5555",
   ]);
-  let votingEnd = $state(Date.now() + 15 * 1000);
-
-  let now = $state(Date.now());
-  onMount(() => {
-    const id = setInterval(() => {
-      now = Date.now();
-    }, 500); // 500 for smoother display
-    return () => clearInterval(id);
-  });
+  let votingEnd = $state(Date.now() + 30 * 1000);
   let votingMillisecondsLeft = $derived(Math.max(votingEnd - now, 0));
 
   let votingSelectedByPlayer = $state("");
@@ -125,6 +127,7 @@
 
 {#if showChatModal}
   <div class="modal">
+    <h1 class="chat-timer">{formatDuration(chatMillisecondsLeft)}</h1>
     <Chat {messages} {sendMessageHandler} />
   </div>
 {/if}
@@ -216,9 +219,16 @@
     height: 100vh;
     background: rgba(0, 0, 0, 0.6);
     display: flex;
+    flex-direction: column;
     justify-content: center;
     align-items: center;
     z-index: 100;
+  }
+
+  .chat-timer {
+    margin-bottom: 0;
+    padding-bottom: 0;
+    color: #f0f0f0;
   }
 
   main {
