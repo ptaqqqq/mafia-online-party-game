@@ -1,13 +1,32 @@
 from collections import defaultdict
-import json
 from typing import Annotated, Dict, Set, Union
-from fastapi import WebSocket, WebSocketDisconnect, WebSocketException
+from fastapi import WebSocket, WebSocketDisconnect
 from fastapi.routing import APIRouter
 from fastapi_camelcase import CamelModel
-from pydantic import ValidationError
+from pydantic import Field, ValidationError
 
 
-from shared.schemas.game import *
+from schemas.game import (
+    ActionAck,
+    ActionAckPayload,
+    GameState,
+    MessageReceived,
+    MorningNews,
+    NightAction,
+    PhaseChange,
+    PlayerJoin,
+    PlayerJoined,
+    PlayerJoinedPayload,
+    PlayerLeave,
+    PlayerLeavePayload,
+    PlayerLeft,
+    PlayerLeftPayload,
+    SendMessage,
+    Vote,
+    VoteCast,
+    VoteCastPayload,
+    VotePayload,
+)
 
 IncomingEvent = Annotated[
     Union[PlayerJoin, PlayerLeave, NightAction, Vote, SendMessage],
