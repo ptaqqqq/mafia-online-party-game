@@ -1,4 +1,3 @@
-from datetime import datetime
 from typing import Any, Dict, List, Literal, Optional
 from pydantic import Field
 
@@ -119,7 +118,7 @@ class VoteCast(GameEvent):
 
 class PhaseChangePayload(CamelModel):
     phase: Literal["day", "night", "voting"]
-    ends_at: datetime = Field(..., description="When this phase ends (ISO timestamp)")
+    ends_at: str = Field(..., description="When this phase ends (ISO timestamp)")
 
 
 class PhaseChange(GameEvent):
@@ -132,7 +131,7 @@ class PhaseChange(GameEvent):
 
 class MessagePayload(CamelModel):
     actor_id: str = Field(..., description="UUID of the player sending the message")
-    timestamp: datetime = Field(
+    timestamp: str = Field(
         ..., description="When this message was sent (ISO timestamp)"
     )
     text: str = Field(..., description="Text content of the message")
@@ -159,7 +158,7 @@ class PlayerState(CamelModel):
 
 
 class GameLogEntry(CamelModel):
-    timestamp: datetime = Field(
+    timestamp: str = Field(
         ..., description="When this event occured (ISO timestamp)"
     )
     event: str = Field(..., description="Type of the event (player.joined, action.ack)")
@@ -168,7 +167,7 @@ class GameLogEntry(CamelModel):
 
 class GameStateSyncPayload(CamelModel):
     players: List[PlayerState]
-    phase: Literal["day", "night", "voting", "ended"] = Field(
+    phase: Literal["lobby", "day", "night", "voting", "ended"] = Field(
         ..., description="Current game phase"
     )
     votes: Optional[Dict[str, str]] = Field(

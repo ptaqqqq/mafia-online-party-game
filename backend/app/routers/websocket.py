@@ -12,8 +12,12 @@ from schemas.game import (
     ActionAck,
     ActionAckPayload,
     GameEvent,
+    NightAction,
+    PlayerJoin,
     PlayerLeave,
     PlayerLeavePayload,
+    SendMessage,
+    Vote,
 )
 
 
@@ -26,6 +30,7 @@ class WebSocketPlayerAdapter(PlayerAdapter):
 
     @override
     async def receive_event(self, event: GameEvent):
+        logging.info(f"Sending event {event.model_dump_json()}")
         await self.ws.send_json(event.model_dump())
 
 
@@ -41,13 +46,31 @@ async def websocket_endpoint(ws: WebSocket, room_id: str):
     ws_uuid = str(uuid4())
     ws_adapter = WebSocketPlayerAdapter(ws)
     uuid_adapters[ws_uuid] = ws_adapter
+
     await ws.send_json({"type": "player.uuid", "payload": {"uuid": ws_uuid}})
+
     try:
         while True:
             try:
                 msg = await ws.receive_json()
-                event = GameEvent.model_validate(msg)
-                room_game_managers[room_id].receive_event(event, uuid_adapters[ws_uuid])
+
+                match msg["type"]:
+                    case "player.join":
+                        event = PlayerJoin.model_validate(msg)
+                    case "player.leave":
+                        event = PlayerLeave.model_validate(msg)
+                    case "action.night":
+                        event = NightAction.model_validate(msg)
+                    case "action.vote":
+                        event = Vote.model_validate(msg)
+                    case "message.send":
+                        event = SendMessage.model_validate(msg)
+                    case _:
+                        raise ValidationError
+                await room_game_managers[room_id].receive_event(
+                    event, uuid_adapters[ws_uuid]
+                )
+
             except ValidationError:
                 await ws.send_json(
                     ActionAck(
@@ -60,7 +83,7 @@ async def websocket_endpoint(ws: WebSocket, room_id: str):
     except WebSocketDisconnect:
         logging.info(f"Websocket {ws_uuid} disconnected")
     finally:
-        room_game_managers[room_id].receive_event(
+        await room_game_managers[room_id].receive_event(
             PlayerLeave(
                 type="player.leave",
                 payload=PlayerLeavePayload(player_id=ws_uuid),

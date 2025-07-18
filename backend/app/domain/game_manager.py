@@ -35,7 +35,7 @@ from app.domain.game_state import GameState, Phase, PlayerGameState, Role
 
 class PlayerAdapter(ABC):
     @abstractmethod
-    def receive_event(self, event: GameEvent):
+    async def receive_event(self, event: GameEvent):
         raise NotImplementedError
 
 
@@ -63,7 +63,7 @@ class GameManager:
         self.cast_votes: Dict[str, str] = defaultdict(str)
         self.event_log: List[GameLogEntry] = []
 
-    def _broadcast(
+    async def _broadcast(
         self, event: GameEvent, excluded_player_ids=None, included_player_roles=None
     ):
         excluded_player_ids = excluded_player_ids or []
@@ -73,7 +73,7 @@ class GameManager:
                 len(included_player_roles) == 0
                 or self.game_state.players[uuid]["role"] in included_player_roles
             ):
-                player.receive_event(event)
+                await player.receive_event(event)
 
     def add_player(self, uuid: str, name: str, player: PlayerAdapter):
         self.players[uuid] = player
@@ -91,6 +91,8 @@ class GameManager:
         self.cast_votes = defaultdict(str)
 
     def _get_vote_winner(self):
+        if len(self.cast_votes) == 0:
+            return None
         vote_count = defaultdict(int)
         for _, target in self.cast_votes.items():
             vote_count[target] += 1
@@ -128,7 +130,7 @@ class GameManager:
                     )
                     for k, v in self.game_state.players.items()
                 ],
-                phase=self.game_state.phase.value,
+                phase=("lobby" if self.lobby else self.game_state.phase.value),
                 votes=self.cast_votes,
                 winner=winner,
                 logs=self.event_log,
@@ -152,32 +154,32 @@ class GameManager:
                     )
                     for k, v in self.game_state.players.items()
                 ],
-                phase=self.game_state.phase.value,
+                phase=("lobby" if self.lobby else self.game_state.phase.value),
                 votes=self.cast_votes,
                 winner=winner,
                 logs=self.event_log,
             ),
         )
 
-    def _sync_game_state(self):
+    async def _sync_game_state(self):
         for uuid, pa in self.players.items():
-            pa.receive_event(
+            await pa.receive_event(
                 self._construct_confidentially_revealing_game_state_sync_event(
                     self.game_state.players[uuid]["role"]
                 )
             )
 
-    def _check_game_over(self):
+    async def _check_game_over(self):
         game_over = self.game_state.check_game_over()
         if game_over:
-            self._broadcast(self._construct_revealing_game_state_sync_event())
+            await self._broadcast(self._construct_revealing_game_state_sync_event())
 
-    def _end_night(self):
+    async def _end_night(self):
         vote_winner = self._get_vote_winner()
         self.game_state.end_night(vote_winner)
 
         if vote_winner:
-            self._broadcast(
+            await self._broadcast(
                 MorningNews(
                     type="action.morning_news",
                     payload=MorningNewsPayload(target_id=vote_winner),
@@ -188,39 +190,39 @@ class GameManager:
         self.next_phase_timestamp = datetime.now(tz=timezone.utc) + timedelta(
             seconds=self.day_duration_s
         )
-        self._broadcast(
+        await self._broadcast(
             PhaseChange(
                 type="phase.change",
                 payload=PhaseChangePayload(
-                    phase="day", ends_at=self.next_phase_timestamp
+                    phase="day", ends_at=self.next_phase_timestamp.isoformat()
                 ),
             )
         )
-        self._sync_game_state()
-        self._check_game_over()
+        await self._sync_game_state()
+        await self._check_game_over()
 
-    def _end_day(self):
+    async def _end_day(self):
         self.game_state.end_day()
         self._reset_votes()
         self.next_phase_timestamp = datetime.now(tz=timezone.utc) + timedelta(
             seconds=self.vote_duration_s
         )
-        self._broadcast(
+        await self._broadcast(
             PhaseChange(
                 type="phase.change",
                 payload=PhaseChangePayload(
-                    phase="voting", ends_at=self.next_phase_timestamp
+                    phase="voting", ends_at=self.next_phase_timestamp.isoformat()
                 ),
             )
         )
-        self._sync_game_state()
+        await self._sync_game_state()
 
-    def _end_voting(self):
+    async def _end_voting(self):
         vote_winner = self._get_vote_winner()
         self.game_state.end_voting(vote_winner)
 
         if vote_winner:
-            self._broadcast(
+            await self._broadcast(
                 EveningNews(
                     type="action.evening_news",
                     payload=EveningNewsPayload(target_id=vote_winner),
@@ -231,16 +233,16 @@ class GameManager:
         self.next_phase_timestamp = datetime.now(tz=timezone.utc) + timedelta(
             seconds=self.night_duration_s
         )
-        self._broadcast(
+        await self._broadcast(
             PhaseChange(
                 type="phase.change",
                 payload=PhaseChangePayload(
-                    phase="night", ends_at=self.next_phase_timestamp
+                    phase="night", ends_at=self.next_phase_timestamp.isoformat()
                 ),
             )
         )
-        self._sync_game_state()
-        self._check_game_over()
+        await self._sync_game_state()
+        await self._check_game_over()
 
     def _assign_roles_randomly(self):
         uuid_list = list(self.players.keys())
@@ -251,7 +253,7 @@ class GameManager:
             else:
                 self.game_state.players[uuid]["role"] = Role.INNOCENT
 
-    def _tick(self):
+    async def _tick(self):
         # reset the timer to one minute, ad infinitum
         if self.lobby and len(self.players) < 4:
             self.next_phase_timestamp = datetime.now(tz=timezone.utc) + timedelta(
@@ -262,17 +264,17 @@ class GameManager:
                 self.lobby = False
                 self._assign_roles_randomly()
             elif self.game_state.phase == Phase.NIGHT:
-                self._end_night()
+                await self._end_night()
             elif self.game_state.phase == Phase.DAY:
-                self._end_day()
+                await self._end_day()
             elif self.game_state.phase == Phase.VOTING:
-                self._end_voting()
-        self._sync_game_state()
+                await self._end_voting()
+        await self._sync_game_state()
 
-    def _receive_vote(self, voter: PlayerAdapter, vote: Vote | NightAction):
+    async def _receive_vote(self, voter: PlayerAdapter, vote: Vote | NightAction):
         payload = vote.payload
         self.cast_votes[payload.actor_id] = payload.target_id
-        self._broadcast(
+        await self._broadcast(
             VoteCast(
                 type="action.vote_cast",
                 payload=VoteCastPayload(
@@ -281,7 +283,7 @@ class GameManager:
             ),
             included_player_roles=[Role.MAFIA],
         )
-        voter.receive_event(
+        await voter.receive_event(
             ActionAck(
                 type="action.ack",
                 payload=ActionAckPayload(
@@ -290,11 +292,11 @@ class GameManager:
             )
         )
 
-    def receive_event(self, event: GameEvent, player: PlayerAdapter):
+    async def receive_event(self, event: GameEvent, player: PlayerAdapter):
         match event:
-            case PlayerJoin(payload=payload):
+            case PlayerJoin(type="player.join", payload=payload):
                 self.add_player(payload.player_id, payload.name, player)
-                self._broadcast(
+                await self._broadcast(
                     PlayerJoined(
                         type="player.joined",
                         payload=PlayerJoinedPayload(
@@ -302,17 +304,18 @@ class GameManager:
                         ),
                     )
                 )
+                await self._sync_game_state()
             case PlayerLeave(payload=payload):
                 if payload.player_id in self.players:
                     self.remove_player(payload.player_id)
-                    self._broadcast(
+                    await self._broadcast(
                         PlayerLeft(
                             type="player.left",
                             payload=PlayerLeftPayload(player_id=payload.player_id),
                         )
                     )
                 else:
-                    player.receive_event(
+                    await player.receive_event(
                         ActionAck(
                             type="action.ack",
                             payload=ActionAckPayload(
@@ -325,9 +328,9 @@ class GameManager:
                     self.game_state.phase == Phase.NIGHT
                     and self.game_state.players[payload.actor_id]["role"] == Role.MAFIA
                 ):
-                    self._receive_vote(player, event)
+                    await self._receive_vote(player, event)
                 else:
-                    player.receive_event(
+                    await player.receive_event(
                         ActionAck(
                             type="action.ack",
                             payload=ActionAckPayload(
@@ -337,9 +340,9 @@ class GameManager:
                     )
             case Vote(payload=payload):
                 if self.game_state.phase == Phase.VOTING:
-                    self._receive_vote(player, event)
+                    await self._receive_vote(player, event)
                 else:
-                    player.receive_event(
+                    await player.receive_event(
                         ActionAck(
                             type="action.ack",
                             payload=ActionAckPayload(
@@ -349,11 +352,11 @@ class GameManager:
                     )
             case SendMessage(payload=payload):
                 if self.lobby or self.game_state.phase == Phase.DAY:
-                    self._broadcast(
+                    await self._broadcast(
                         MessageReceived(type="message.received", payload=payload)
                     )
                 else:
-                    player.receive_event(
+                    await player.receive_event(
                         ActionAck(
                             type="action.ack",
                             payload=ActionAckPayload(
@@ -362,7 +365,7 @@ class GameManager:
                         )
                     )
             case _:
-                player.receive_event(
+                await player.receive_event(
                     ActionAck(
                         type="action.ack",
                         payload=ActionAckPayload(
@@ -371,4 +374,4 @@ class GameManager:
                     )
                 )
 
-        self._tick()
+        await self._tick()
