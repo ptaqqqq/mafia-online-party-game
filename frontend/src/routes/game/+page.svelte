@@ -4,14 +4,27 @@
   import Chat from "$lib/components/Chat.svelte";
   import LobbyInfo from "$lib/components/LobbyInfo.svelte";
   import UserList from "$lib/components/UserList.svelte";
+  import { page } from "$app/state";
 
   let now = $state(Date.now());
   onMount(() => {
     const id = setInterval(() => {
       now = Date.now();
+      gameInfo.nextPhase = votingMillisecondsLeft
     }, 500); // 500 for smoother display
     return () => clearInterval(id);
   });
+
+  // TODO: clean up everything
+
+  /// Game info ///
+  let gameInfo = $state({
+    lobbyCode: page.params.room_id,
+    phase: 'night',
+    uuid: 'n/a',
+    nextPhase: 0
+  });
+
 
   /// Text stream ///
   let streamedText = $state([
@@ -48,20 +61,12 @@
   let messages = $state([{ id: 1, user: "user_1234", text: "Hello, world!" }]);
   let chatEnd = $state(Date.now() + 15 * 1000);
   let chatMillisecondsLeft = $derived(Math.max(0, chatEnd - now));
-  let showChatModal = $derived(chatMillisecondsLeft > 0);
+  let showChatModal = $derived(gameInfo.phase === "day" || gameInfo.phase === "lobby");
 
   let sendMessageHandler = (/** @type {string} */ msgText) => {
-    messages.push({ id: Date.now(), user: "me", text: msgText });
-    // TODO: Debug only, disable later
-    addTextToStream({ id: Date.now(), text: msgText });
+    const payload = { actor_id: gameInfo.uuid, timestamp: new Date().toISOString(), 'text': msgText };
+    ws.send(JSON.stringify({ type: 'message.send', payload }));
   };
-
-  /// Game info ///
-  let gameInfo = $state({
-    lobbyCode: "ABCDEF",
-    day: 3,
-    hour: "3:00 am",
-  });
 
   /// User list ///
   let users = $state(
@@ -80,7 +85,7 @@
   ]);
 
   /// Voting ///
-  let showVoting = $state(true);
+  let showVoting = $derived(gameInfo.phase === "voting");
 
   let votingPrompt = $state("Eliminate user?");
   let votingOptions = $state([
@@ -105,6 +110,88 @@
       votingSelectedByPlayer = option;
     }
   };
+
+  ///////////////
+  // Websocket //
+  ///////////////
+  let ws;
+
+  let display_names_per_id = $state({})
+
+  function connect() {
+    const roomId = page.url.searchParams.get('room_id');
+    const protocol = location.protocol === 'https:' ? 'wss' : 'ws';
+    ws = new WebSocket(`${protocol}://localhost:8000/ws/${roomId}`);
+
+    ws.onopen = () => console.log('WebSocket connected');
+    ws.onmessage = async (evt) => {
+      const event = JSON.parse(evt.data);
+      console.debug(event)
+      switch (event.type) {
+        case 'player.uuid':
+          gameInfo.uuid = event.payload.uuid
+          const payload = { player_id: gameInfo.uuid, name: "hello its me" };
+          ws.send(JSON.stringify({ type: 'player.join', payload }));
+          console.log('sent hello!')
+          break;
+
+        case 'game.state':
+          console.log('received game state')
+          const st = event.payload;
+          gameInfo = { lobbyCode: roomId, phase: st.phase, uuid: gameInfo.uuid };
+          let phaseEnd = (new Date(st.logs[st.logs.length-1]?.timestamp || Date.now()).getTime());
+          votingEnd = phaseEnd
+          chatEnd = phaseEnd
+          
+          console.log('mapping users')
+
+          // @ts-ignore
+          users = st.players.map(p => p.name);
+          display_names_per_id = st.players.map(p => ({[p.player_id]: p.name}));
+          // @ts-ignore
+          eliminated = st.players.filter(p => !p.alive).map(p => p.player_id);
+          // if mafia reveal
+          // @ts-ignore
+          mafiosi = st.players.filter(p => p.role_revealed === 'mafia').map(p => p.player_id);
+          break;
+
+        case 'message.received':
+          // TODO: make it work better with the component
+          messages.push({ id: Date.now(), user: display_names_per_id[event.payload.actor_id], text: event.payload.text });
+          break;
+
+        case 'action.morning_news':
+        case 'action.evening_news':
+          // show news in stream
+          addTextToStream({ id: Date.now(), text: `Player ${event.payload.target_id} eliminated.` });
+          break;
+
+        case 'action.vote_cast':
+          const { actor_id, target_id } = event.payload;
+          if (actor_id !== gameInfo.uuid) {
+            votingSelectedByOthers[target_id] = (votingSelectedByOthers[target_id] || 0) + 1;
+          }
+          break;
+
+        case 'phase.change':
+          gameInfo['phase'] = event.payload.phase;
+          chatEnd = votingEnd = new Date(event.payload.ends_at).getTime();
+          if (showVoting) {
+            votingPrompt = 'Eliminate user?';
+            votingOptions = users.filter(u => !eliminated.includes(u));
+            votingSelectedByOthers = {};
+            votingSelectedByPlayer = '';
+          }
+          break;
+
+        default:
+          console.warn('Unhandled event', event.type);
+      }
+    };
+    ws.onclose = () => console.log('WebSocket disconnected');
+  }
+
+  onMount(connect)
 
   /**
    * @param {number} ms
