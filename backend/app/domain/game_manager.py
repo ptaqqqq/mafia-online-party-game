@@ -94,7 +94,7 @@ class GameManager:
         for _, target in self.cast_votes.items():
             vote_count[target] += 1
         max_count = max(vote_count.values())
-        winners = [k for k, v in self.cast_votes.items() if v == max_count]
+        winners = [k for k, v in vote_count.items() if v == max_count]
         if len(winners) == 1:
             return winners[0]
         else:
