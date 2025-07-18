@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
+import random
 from typing import Dict, List, Optional
 from schemas.game import (
     ActionAck,
@@ -39,7 +40,18 @@ class PlayerAdapter(ABC):
 
 
 class GameManager:
-    def __init__(self, night_duration_s=30, day_duration_s=60, vote_duration_s=30):
+    def __init__(
+        self,
+        mafiosi_count: int = 2,
+        night_duration_s=30,
+        day_duration_s=60,
+        vote_duration_s=30,
+    ):
+        self.mafiosi_count = mafiosi_count
+        self.night_duration_s = night_duration_s
+        self.day_duration_s = day_duration_s
+        self.vote_duration_s = vote_duration_s
+
         self.game_state = GameState()
         self.players: Dict[str, PlayerAdapter] = dict()
         self.player_names: Dict[str, str] = dict()
@@ -47,11 +59,7 @@ class GameManager:
         self.next_phase_timestamp: datetime = datetime.now(tz=timezone.utc) + timedelta(
             minutes=1, milliseconds=499
         )
-        self.night_duration_s = night_duration_s
-        self.day_duration_s = day_duration_s
-        self.vote_duration_s = vote_duration_s
-        # TODO: refactor to map str -> str
-        self.cast_votes: Dict[str, int] = defaultdict(int)
+        self.cast_votes: Dict[str, str] = defaultdict(str)
         self.event_log: List[GameLogEntry] = []
 
     def _broadcast(
@@ -69,7 +77,9 @@ class GameManager:
     def add_player(self, uuid: str, name: str, player: PlayerAdapter):
         self.players[uuid] = player
         self.player_names[uuid] = name
-        self.game_state.add_player(uuid, PlayerGameState(role=Role.INNOCENT, alive=True))
+        self.game_state.add_player(
+            uuid, PlayerGameState(role=Role.INNOCENT, alive=True)
+        )
 
     def remove_player(self, uuid: str):
         del self.players[uuid]
@@ -77,12 +87,13 @@ class GameManager:
         self.game_state.remove_player(uuid)
 
     def _reset_votes(self):
-        self.cast_votes = defaultdict(int, {uuid: 0 for uuid in self.players})
-        for uuid in self.players.keys():
-            self.cast_votes[uuid] = 0
+        self.cast_votes = defaultdict(str)
 
     def _get_vote_winner(self):
-        max_count = max(self.cast_votes.values())
+        vote_count = defaultdict(int)
+        for _, target in self.cast_votes.items():
+            vote_count[target] += 1
+        max_count = max(vote_count.values())
         winners = [k for k, v in self.cast_votes.items() if v == max_count]
         if len(winners) == 1:
             return winners[0]
@@ -230,6 +241,15 @@ class GameManager:
         self._sync_game_state()
         self._check_game_over()
 
+    def _assign_roles_randomly(self):
+        uuid_list = list(self.players.keys())
+        mafia_uuids = random.sample(uuid_list, k=self.mafiosi_count)
+        for uuid in uuid_list:
+            if uuid in mafia_uuids:
+                self.game_state.players[uuid]["role"] = Role.MAFIA
+            else:
+                self.game_state.players[uuid]["role"] = Role.INNOCENT
+
     def _tick(self):
         # reset the timer to one minute, ad infinitum
         if self.lobby and len(self.players) < 4:
@@ -239,13 +259,35 @@ class GameManager:
         elif self.next_phase_timestamp <= datetime.now(tz=timezone.utc):
             if self.lobby:
                 self.lobby = False
-                # TODO: randomly choose roles here
+                self._assign_roles_randomly()
             elif self.game_state.phase == Phase.NIGHT:
                 self._end_night()
             elif self.game_state.phase == Phase.DAY:
                 self._end_day()
             elif self.game_state.phase == Phase.VOTING:
                 self._end_voting()
+        self._sync_game_state()
+
+    def _receive_vote(self, voter: PlayerAdapter, vote: Vote | NightAction):
+        payload = vote.payload
+        self.cast_votes[payload.actor_id] = payload.target_id
+        self._broadcast(
+            VoteCast(
+                type="action.vote_cast",
+                payload=VoteCastPayload(
+                    actor_id=payload.actor_id, target_id=payload.target_id
+                ),
+            ),
+            included_player_roles=[Role.MAFIA],
+        )
+        voter.receive_event(
+            ActionAck(
+                type="action.ack",
+                payload=ActionAckPayload(
+                    success=True, message="Successfully cast vote"
+                ),
+            )
+        )
 
     def receive_event(self, event: GameEvent, player: PlayerAdapter):
         match event:
@@ -272,24 +314,7 @@ class GameManager:
                     self.game_state.phase == Phase.NIGHT
                     and self.game_state.players[payload.actor_id]["role"] == Role.MAFIA
                 ):
-                    # TODO: change vote count actually
-                    self._broadcast(
-                        VoteCast(
-                            type="action.vote_cast",
-                            payload=VoteCastPayload(
-                                actor_id=payload.actor_id, target_id=payload.target_id
-                            ),
-                        ),
-                        included_player_roles=[Role.MAFIA],
-                    )
-                    player.receive_event(
-                        ActionAck(
-                            type="action.ack",
-                            payload=ActionAckPayload(
-                                success=True, message="Successfully cast vote"
-                            ),
-                        )
-                    )
+                    self._receive_vote(player, event)
                 else:
                     player.receive_event(
                         ActionAck(
@@ -301,23 +326,7 @@ class GameManager:
                     )
             case Vote(payload=payload):
                 if self.game_state.phase == Phase.VOTING:
-                    # TODO: change vote count actually
-                    self._broadcast(
-                        VoteCast(
-                            type="action.vote_cast",
-                            payload=VoteCastPayload(
-                                actor_id=payload.actor_id, target_id=payload.target_id
-                            ),
-                        )
-                    )
-                    player.receive_event(
-                        ActionAck(
-                            type="action.ack",
-                            payload=ActionAckPayload(
-                                success=True, message="Successfully cast vote"
-                            ),
-                        )
-                    )
+                    self._receive_vote(player, event)
                 else:
                     player.receive_event(
                         ActionAck(

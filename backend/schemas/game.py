@@ -171,8 +171,8 @@ class GameStateSyncPayload(CamelModel):
     phase: Literal["day", "night", "voting", "ended"] = Field(
         ..., description="Current game phase"
     )
-    votes: Optional[Dict[str, int]] = Field(
-        None, description="Maps target: count during voting phase"
+    votes: Optional[Dict[str, str]] = Field(
+        None, description="Maps voter: target during voting phase"
     )
     winner: Optional[Literal["mafia", "innocents", "draw"]] = Field(
         None, description="Who won the game (if it ended)"
