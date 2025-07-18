@@ -1,9 +1,12 @@
-from datetime import datetime
 from typing import Any, Dict, List, Literal, Optional
 from pydantic import Field
 
 # to use camelCase when serializing/deserializing JSON
 from fastapi_camelcase import CamelModel
+
+
+class GameEvent(CamelModel):
+    pass
 
 
 # Player events
@@ -14,7 +17,7 @@ class PlayerJoinPayload(CamelModel):
     name: str = Field(..., description="Display name")
 
 
-class PlayerJoin(CamelModel):
+class PlayerJoin(GameEvent):
     type: Literal["player.join"]
     payload: PlayerJoinPayload
 
@@ -23,7 +26,7 @@ class PlayerLeavePayload(CamelModel):
     player_id: str = Field(..., description="UUID of the leaving player")
 
 
-class PlayerLeave(CamelModel):
+class PlayerLeave(GameEvent):
     type: Literal["player.leave"]
     payload: PlayerLeavePayload
 
@@ -33,7 +36,7 @@ class PlayerJoinedPayload(CamelModel):
     name: str = Field(..., description="Display name")
 
 
-class PlayerJoined(CamelModel):
+class PlayerJoined(GameEvent):
     type: Literal["player.joined"]
     payload: PlayerJoinedPayload
 
@@ -42,7 +45,7 @@ class PlayerLeftPayload(CamelModel):
     player_id: str = Field(..., description="UUID of the player who left")
 
 
-class PlayerLeft(CamelModel):
+class PlayerLeft(GameEvent):
     type: Literal["player.left"]
     payload: PlayerLeftPayload
 
@@ -56,7 +59,7 @@ class NightActionPayload(CamelModel):
     target_id: str = Field(..., description="UUID of the targeted player")
 
 
-class NightAction(CamelModel):
+class NightAction(GameEvent):
     type: Literal["action.night"]
     payload: NightActionPayload
 
@@ -66,7 +69,7 @@ class VotePayload(CamelModel):
     target_id: str = Field(..., description="UUID of the player voted on")
 
 
-class Vote(CamelModel):
+class Vote(GameEvent):
     type: Literal["action.vote"]
     payload: VotePayload
 
@@ -76,7 +79,7 @@ class ActionAckPayload(CamelModel):
     message: Optional[str] = None
 
 
-class ActionAck(CamelModel):
+class ActionAck(GameEvent):
     type: Literal["action.ack"]
     payload: ActionAckPayload
 
@@ -85,9 +88,19 @@ class MorningNewsPayload(CamelModel):
     target_id: str = Field(..., description="UUID of the killed player")
 
 
-class MorningNews(CamelModel):
-    type: Literal["action.news"]
+class MorningNews(GameEvent):
+    type: Literal["action.morning_news"]
     payload: MorningNewsPayload
+
+
+class EveningNewsPayload(CamelModel):
+    target_id: str = Field(..., description="UUID of the ostracized player")
+
+
+class EveningNews(GameEvent):
+    type: Literal["action.evening_news"]
+    payload: EveningNewsPayload
+
 
 
 class VoteCastPayload(CamelModel):
@@ -95,7 +108,7 @@ class VoteCastPayload(CamelModel):
     target_id: str = Field(..., description="UUID of the player voted on")
 
 
-class VoteCast(CamelModel):
+class VoteCast(GameEvent):
     type: Literal["action.vote_cast"]
     payload: VoteCastPayload
 
@@ -105,10 +118,10 @@ class VoteCast(CamelModel):
 
 class PhaseChangePayload(CamelModel):
     phase: Literal["day", "night", "voting"]
-    ends_at: datetime = Field(..., description="When this phase ends (ISO timestamp)")
+    ends_at: str = Field(..., description="When this phase ends (ISO timestamp)")
 
 
-class PhaseChange(CamelModel):
+class PhaseChange(GameEvent):
     type: Literal["phase.change"]
     payload: PhaseChangePayload
 
@@ -118,18 +131,18 @@ class PhaseChange(CamelModel):
 
 class MessagePayload(CamelModel):
     actor_id: str = Field(..., description="UUID of the player sending the message")
-    timestamp: datetime = Field(
+    timestamp: str = Field(
         ..., description="When this message was sent (ISO timestamp)"
     )
     text: str = Field(..., description="Text content of the message")
 
 
-class SendMessage(CamelModel):
+class SendMessage(GameEvent):
     type: Literal["message.send"]
     payload: MessagePayload
 
 
-class MessageReceived(CamelModel):
+class MessageReceived(GameEvent):
     type: Literal["message.received"]
     payload: MessagePayload
 
@@ -145,26 +158,29 @@ class PlayerState(CamelModel):
 
 
 class GameLogEntry(CamelModel):
-    timestamp: datetime = Field(
+    timestamp: str = Field(
         ..., description="When this event occured (ISO timestamp)"
     )
     event: str = Field(..., description="Type of the event (player.joined, action.ack)")
     details: Dict[str, Any] = Field(..., description="Payload of the event")
 
 
-class GameStatePayload(CamelModel):
+class GameStateSyncPayload(CamelModel):
     players: List[PlayerState]
-    phase: Literal["day", "night", "voting"] = Field(
+    phase: Literal["lobby", "day", "night", "voting", "ended"] = Field(
         ..., description="Current game phase"
     )
     votes: Optional[Dict[str, str]] = Field(
-        None, description="Maps actor: target during voting phase"
+        None, description="Maps voter: target during voting phase"
+    )
+    winner: Optional[Literal["mafia", "innocents", "draw"]] = Field(
+        None, description="Who won the game (if it ended)"
     )
     logs: List[GameLogEntry] = Field(
         ..., description="Past game events, chronologically"
     )
 
 
-class GameState(CamelModel):
+class GameStateSync(GameEvent):
     type: Literal["game.state"]
-    payload: GameStatePayload
+    payload: GameStateSyncPayload
