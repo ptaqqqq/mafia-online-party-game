@@ -118,7 +118,7 @@ class VoteCast(GameEvent):
 
 class PhaseChangePayload(CamelModel):
     phase: Literal["day", "night", "voting"]
-    ends_at: str = Field(..., description="When this phase ends (ISO timestamp)")
+    ends_at: float = Field(..., description="When this phase ends (Unix timestamp)")
 
 
 class PhaseChange(GameEvent):
@@ -131,8 +131,8 @@ class PhaseChange(GameEvent):
 
 class MessagePayload(CamelModel):
     actor_id: str = Field(..., description="UUID of the player sending the message")
-    timestamp: str = Field(
-        ..., description="When this message was sent (ISO timestamp)"
+    timestamp: float = Field(
+        ..., description="When this message was sent (Unix timestamp)"
     )
     text: str = Field(..., description="Text content of the message")
 
@@ -158,8 +158,8 @@ class PlayerState(CamelModel):
 
 
 class GameLogEntry(CamelModel):
-    timestamp: str = Field(
-        ..., description="When this event occured (ISO timestamp)"
+    timestamp: float = Field(
+        ..., description="When this event occured (Unix timestamp)"
     )
     event: str = Field(..., description="Type of the event (player.joined, action.ack)")
     details: Dict[str, Any] = Field(..., description="Payload of the event")
@@ -170,6 +170,7 @@ class GameStateSyncPayload(CamelModel):
     phase: Literal["lobby", "day", "night", "voting", "ended"] = Field(
         ..., description="Current game phase"
     )
+    phase_ends_at: float = Field(..., description="When this phase ends (Unix timestamp)")
     votes: Optional[Dict[str, str]] = Field(
         None, description="Maps voter: target during voting phase"
     )
@@ -184,3 +185,8 @@ class GameStateSyncPayload(CamelModel):
 class GameStateSync(GameEvent):
     type: Literal["game.state"]
     payload: GameStateSyncPayload
+
+
+class GameStateRequest(GameEvent):
+    type: Literal["game.sync_request"]
+    player_id: str

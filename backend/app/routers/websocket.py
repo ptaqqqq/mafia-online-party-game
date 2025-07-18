@@ -12,6 +12,7 @@ from schemas.game import (
     ActionAck,
     ActionAckPayload,
     GameEvent,
+    GameStateRequest,
     NightAction,
     PlayerJoin,
     PlayerLeave,
@@ -65,6 +66,8 @@ async def websocket_endpoint(ws: WebSocket, room_id: str):
                         event = Vote.model_validate(msg)
                     case "message.send":
                         event = SendMessage.model_validate(msg)
+                    case "game.sync_request":
+                        event = GameStateRequest.model_validate(msg)
                     case _:
                         raise ValidationError
                 await room_game_managers[room_id].receive_event(
@@ -82,7 +85,6 @@ async def websocket_endpoint(ws: WebSocket, room_id: str):
                 )
     except WebSocketDisconnect:
         logging.info(f"Websocket {ws_uuid} disconnected")
-    finally:
         await room_game_managers[room_id].receive_event(
             PlayerLeave(
                 type="player.leave",

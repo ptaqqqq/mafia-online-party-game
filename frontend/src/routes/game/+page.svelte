@@ -4,107 +4,16 @@
   import Chat from "$lib/components/Chat.svelte";
   import LobbyInfo from "$lib/components/LobbyInfo.svelte";
   import UserList from "$lib/components/UserList.svelte";
+  import { page } from "$app/state";
 
-  let now = $state(Date.now());
+
+  let now = $state(Date.now() / 1000.0);  // in seconds to match Python code
   onMount(() => {
     const id = setInterval(() => {
-      now = Date.now();
+      now = Date.now() / 1000.0;
     }, 500); // 500 for smoother display
     return () => clearInterval(id);
   });
-
-  /// Text stream ///
-  let streamedText = $state([
-    { id: 1, text: "Lorem ipsum dolor sit amet." },
-    { id: 2, text: "Wlazł kotek na płotek." },
-    { id: 3, text: "Litwo, ojczyzno moja." },
-    { id: 4, text: "To be or not to be." },
-  ]);
-  /**
-   * @type {HTMLDivElement}
-   */
-  let textStream;
-
-  /**
-   * @param {{ id: number; text: string; }} textObj
-   */
-  export async function addTextToStream(textObj) {
-    streamedText.push(textObj);
-    tick();
-    scrollToBottom(textStream);
-  }
-
-  onMount(() => {
-    scrollToBottom(textStream)
-    window.addEventListener('resize', () => { scrollToBottom(textStream) });
-  });
-
-  // @ts-ignore
-  const scrollToBottom = async (node) => {
-    node.scroll({ top: node.scrollHeight, behavior: "smooth" });
-  };
-
-  /// Chat modal ///
-  let messages = $state([{ id: 1, user: "user_1234", text: "Hello, world!" }]);
-  let chatEnd = $state(Date.now() + 15 * 1000);
-  let chatMillisecondsLeft = $derived(Math.max(0, chatEnd - now));
-  let showChatModal = $derived(chatMillisecondsLeft > 0);
-
-  let sendMessageHandler = (/** @type {string} */ msgText) => {
-    messages.push({ id: Date.now(), user: "me", text: msgText });
-    // TODO: Debug only, disable later
-    addTextToStream({ id: Date.now(), text: msgText });
-  };
-
-  /// Game info ///
-  let gameInfo = $state({
-    lobbyCode: "ABCDEF",
-    day: 3,
-    hour: "3:00 am",
-  });
-
-  /// User list ///
-  let users = $state(
-    Array.from(
-      { length: 10 },
-      () => "user_" + Math.floor(Math.random() * 10000),
-    ),
-  );
-  let eliminated = $state([
-    users[0],
-    users[3]
-  ]);
-  let mafiosi = $state([
-    users[2],
-    users[3]
-  ]);
-
-  /// Voting ///
-  let showVoting = $state(true);
-
-  let votingPrompt = $state("Eliminate user?");
-  let votingOptions = $state([
-    "user_0123",
-    "user_1234",
-    "user_6789",
-    "user_5555",
-  ]);
-  let votingEnd = $state(Date.now() + 30 * 1000);
-  let votingMillisecondsLeft = $derived(Math.max(votingEnd - now, 0));
-
-  let votingSelectedByPlayer = $state("");
-  /** @type {Record<string, number>} */
-  let votingSelectedByOthers = $state({
-    user_0123: 2,
-    user_5555: 1,
-  });
-
-  const votingSelectHandler = (/** @type {any} */ option) => {
-    if (votingMillisecondsLeft > 0) {
-      console.debug("Selected vote for", option);
-      votingSelectedByPlayer = option;
-    }
-  };
 
   /**
    * @param {number} ms
@@ -123,18 +32,227 @@
 
     return hours ? `${h}:${m}:${s}` : `${m}:${s}`;
   }
+
+
+  /// Game info ///
+  let lobbyCode = page.params.room_id;
+  let currentPhase = $state('lobby');
+  let userUuid = $state('n/a')
+  let phaseEnd = $state(Date.now() / 1000.0);
+  let winner = $state('n/a')
+
+  let phaseMillisecondsLeft = $derived((phaseEnd - now) * 1000);
+  let gameInfo = $derived({
+    lobbyCode: lobbyCode,
+    phase: currentPhase,
+    uuid: userUuid,
+    nextPhase: phaseMillisecondsLeft,
+    winner: winner
+  });
+
+
+
+  /// Text stream ///
+  let streamedText = $state([
+    { id: 1, text: "Lorem ipsum dolor sit amet." },
+    { id: 2, text: "Wlazł kotek na płotek." },
+    { id: 3, text: "Litwo, ojczyzno moja." },
+    { id: 4, text: "To be or not to be." },
+  ]);
+  /**
+   * @type {HTMLDivElement}
+   */
+  let textStream;
+  /**
+   * @param {{ id: number; text: string; }} textObj
+   */
+  export async function addTextToStream(textObj) {
+    streamedText.push(textObj);
+    tick();
+    scrollToBottom(textStream);
+  }
+  onMount(() => {
+    scrollToBottom(textStream)
+    window.addEventListener('resize', () => { scrollToBottom(textStream) });
+  });
+  // @ts-ignore
+  const scrollToBottom = async (node) => {
+    node.scroll({ top: node.scrollHeight, behavior: "smooth" });
+  };
+
+
+  /// Chat modal ///
+  /**
+     * @type {{ id: number; user: string; text: string; }[]}
+     */
+  let messages = $state([]);
+  let showChatModal = $derived(currentPhase === "day" || currentPhase === "lobby");
+
+  let sendMessageHandler = (/** @type {string} */ msgText) => {
+    const payload = { actor_id: userUuid, timestamp: now, 'text': msgText };
+    ws.send(JSON.stringify({ type: 'message.send', payload }));
+  };
+
+
+  /// User list ///
+  let users = $state(
+    Array.from(
+      { length: 10 },
+      () => "user_" + Math.floor(Math.random() * 10000),
+    ),
+  );
+  /**
+    * @type {string[]}
+    */
+  let eliminated = $state([]);
+  /**
+    * @type {string[]}
+    */
+  let mafiosi = $state([]);
+
+
+  /// Voting ///
+  let showVoting = $derived(currentPhase === "voting" || (currentPhase === "night" && mafiosi.includes(userUuid)));
+  let votingPrompt = $derived.by(() => {
+    if (currentPhase === "voting") {
+      return "Who is the most suspicious?";
+    } else {
+      return "Choose your target wisely...";
+    }
+  });
+  /**
+     * @type {string[]}
+     */
+  let votingOptions = $derived(users.filter(p => !eliminated.includes(p)));
+  let votingSelectedByPlayer = $state("");
+  /** @type {Record<string, number>} */
+  let votingSelectedByOthers = $state({});
+  const votingSelectHandler = (/** @type {any} */ option) => {
+    if (phaseMillisecondsLeft > 0) {
+      console.debug("Selected vote for", option);
+      votingSelectedByPlayer = option;
+      if (currentPhase === 'voting') {
+        const payload = { actor_id: userUuid, target_id: option };
+        ws.send(JSON.stringify({ type: 'action.vote', payload }));
+      } else if (currentPhase === 'night') {
+        const payload = { actor_id: userUuid, action: 'kill', target_id: option };
+        ws.send(JSON.stringify({ type: 'action.night', payload }));
+      }
+    }
+  };``
+
+
+  ///////////////
+  // Websocket //
+  ///////////////
+  /**
+    * @type {WebSocket}
+    */
+  let ws;
+
+  let display_names_per_id = $state({})
+
+  function connect() {
+    const roomId = page.url.searchParams.get('room_id');
+    const protocol = location.protocol === 'https:' ? 'wss' : 'ws';
+    ws = new WebSocket(`${protocol}://localhost:8000/ws/${roomId}`);
+
+    ws.onopen = () => console.log('WebSocket connected');
+    ws.onmessage = async (evt) => {
+      const event = JSON.parse(evt.data);
+      console.debug(event)
+      switch (event.type) {
+        case 'player.uuid':
+          userUuid = event.payload.uuid
+          const payload = { player_id: userUuid, name: "hello its me" };
+          ws.send(JSON.stringify({ type: 'player.join', payload }));
+          console.log('sent hello!')
+          break;
+
+        case 'game.state':
+          console.log('received game state')
+          const st = event.payload;
+
+          currentPhase = st.phase;
+          phaseEnd = st.phase_ends_at;
+          if (st.winner) {
+            winner = st.winner
+          }
+          const st_users = st.players;
+          const st_votes = st.votes;
+
+          // TODO: switch to displaying player names instead of UUIDs
+          // @ts-ignore
+          users = st_users.map(p => p.player_id);
+          // @ts-ignore
+          mafiosi = st_users.filter(p => p.role_revealed === 'mafia').map(p => p.player_id);
+          // @ts-ignore
+          eliminated = st_users.filter(p => p.alive === false).map(p => p.player_id);
+          
+          if (st_votes) {
+            if (st_votes[userUuid]) {
+              votingSelectedByPlayer = st_votes[userUuid];
+            } else {
+              votingSelectedByPlayer = '';
+            }
+
+            Object.entries(st_votes).forEach(([actorId, targetId]) => {
+              if (actorId === userUuid) return;
+              users.forEach(p => votingSelectedByOthers[p] = 0);
+              votingSelectedByOthers[targetId] = (votingSelectedByOthers[targetId] || 0) + 1;
+            });
+          } else {
+            users.forEach(p => votingSelectedByOthers[p] = 0)
+          }
+          break;
+
+        case 'message.received':
+          // TODO: autoscroll
+          messages.push({ id: Date.now(), user: event.payload.actor_id, text: event.payload.text });
+          break;
+
+        case 'action.morning_news':
+          addTextToStream({ id: Date.now(), text: `Player ${event.payload.target_id} has been killed by the mafia.` });
+          break;
+        case 'action.evening_news':
+          addTextToStream({ id: Date.now(), text: `Player ${event.payload.target_id} has been voted off.` });
+          break;
+
+        case 'action.vote_cast':
+          const { actor_id, target_id } = event.payload;
+          if (actor_id !== userUuid) {
+            // votingSelectedByOthers[target_id] = (votingSelectedByOthers[target_id] || 0) + 1;
+          }
+          break;
+
+        case 'phase.change':
+          currentPhase = event.payload.phase;
+          phaseEnd = event.payload.phase_ends_at;
+          break;
+
+        default:
+          console.warn('Unhandled event', event.type);
+      }
+    };
+    ws.onclose = () => console.log('WebSocket disconnected');
+  }
+
+  onMount(connect)
+  onMount(() => setInterval(() => {
+    ws.send(JSON.stringify({ type: 'game.sync_request', playerId: userUuid }));
+  }, 1000))
 </script>
 
 {#if showChatModal}
   <div class="modal">
-    <h1 class="chat-timer">{formatDuration(chatMillisecondsLeft)}</h1>
+    <h1 class="chat-timer">{formatDuration(phaseMillisecondsLeft)}</h1>
     <Chat {messages} {sendMessageHandler} />
   </div>
 {/if}
 
 <main>
   <div class="main-area">
-    <div class="lobby-info overlay">
+    <div class="lobby-info overlay">r
       <LobbyInfo lobbySettings={gameInfo} />
     </div>
     <div class="text-stream overlay" bind:this={textStream}>
@@ -149,7 +267,7 @@
         <div class="voting-container">
           <div class="voting-header">
             <p><strong>{votingPrompt}</strong></p>
-            <p class="voting-timer">{formatDuration(votingMillisecondsLeft)}</p>
+            <p class="voting-timer">{formatDuration(phaseMillisecondsLeft)}</p>
           </div>
           <div class="voting-options">
           {#each votingOptions as option}
