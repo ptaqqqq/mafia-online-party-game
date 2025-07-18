@@ -39,6 +39,7 @@ class PlayerAdapter(ABC):
         raise NotImplementedError
 
 
+# TODO: refactor to return events, not send them - race conditions!
 class GameManager:
     def __init__(
         self,
@@ -302,13 +303,23 @@ class GameManager:
                     )
                 )
             case PlayerLeave(payload=payload):
-                self.remove_player(payload.player_id)
-                self._broadcast(
-                    PlayerLeft(
-                        type="player.left",
-                        payload=PlayerLeftPayload(player_id=payload.player_id),
+                if payload.player_id in self.players:
+                    self.remove_player(payload.player_id)
+                    self._broadcast(
+                        PlayerLeft(
+                            type="player.left",
+                            payload=PlayerLeftPayload(player_id=payload.player_id),
+                        )
                     )
-                )
+                else:
+                    player.receive_event(
+                        ActionAck(
+                            type="action.ack",
+                            payload=ActionAckPayload(
+                                success=False, message="Cannot do this!"
+                            ),
+                        )
+                    )
             case NightAction(payload=payload):
                 if (
                     self.game_state.phase == Phase.NIGHT
@@ -350,5 +361,14 @@ class GameManager:
                             ),
                         )
                     )
+            case _:
+                player.receive_event(
+                    ActionAck(
+                        type="action.ack",
+                        payload=ActionAckPayload(
+                            success=False, message="Cannot do this!"
+                        ),
+                    )
+                )
 
         self._tick()
