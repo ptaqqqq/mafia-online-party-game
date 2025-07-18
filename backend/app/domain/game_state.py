@@ -20,7 +20,7 @@ class GameWinner(Enum):
     DRAW = "draw"
 
 
-class PlayerState(TypedDict):
+class PlayerGameState(TypedDict):
     role: Role
     alive: bool
 
@@ -32,10 +32,10 @@ class InvalidPhaseError(Exception):
 class GameState:
     def __init__(self):
         self.phase: Phase = Phase.NIGHT
-        self.players: Dict[str, PlayerState] = {}
+        self.players: Dict[str, PlayerGameState] = {}
         self.winner: Optional[GameWinner] = None
 
-    def add_player(self, uuid: str, player_state: PlayerState):
+    def add_player(self, uuid: str, player_state: PlayerGameState):
         self.players[uuid] = player_state
 
     def remove_player(self, uuid: str):

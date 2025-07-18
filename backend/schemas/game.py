@@ -90,8 +90,18 @@ class MorningNewsPayload(CamelModel):
 
 
 class MorningNews(GameEvent):
-    type: Literal["action.news"]
+    type: Literal["action.morning_news"]
     payload: MorningNewsPayload
+
+
+class EveningNewsPayload(CamelModel):
+    target_id: str = Field(..., description="UUID of the ostracized player")
+
+
+class EveningNews(GameEvent):
+    type: Literal["action.evening_news"]
+    payload: EveningNewsPayload
+
 
 
 class VoteCastPayload(CamelModel):
