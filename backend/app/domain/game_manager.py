@@ -48,11 +48,15 @@ class GameManager:
         night_duration_s=20,
         day_duration_s=15,
         vote_duration_s=20,
+        lobby_duration_s=30,
+        ended_duation_s=30
     ):
         self.mafiosi_count = mafiosi_count
         self.night_duration_s = night_duration_s
         self.day_duration_s = day_duration_s
         self.vote_duration_s = vote_duration_s
+        self.lobby_duration_s = lobby_duration_s
+        self.ended_duration_s = ended_duation_s
 
         self.game_state = GameState()
         self.players: Dict[str, PlayerAdapter] = dict()
@@ -263,7 +267,7 @@ class GameManager:
         # reset the timer to one minute, ad infinitum
         if self.lobby and len(self.players) < 4:
             self.next_phase_timestamp = (datetime.now(tz=timezone.utc) + timedelta(
-                minutes=0.25, milliseconds=499
+                seconds=self.lobby_duration_s
             )).timestamp()
         elif self.next_phase_timestamp <= datetime.now(tz=timezone.utc).timestamp():
             if self.lobby:

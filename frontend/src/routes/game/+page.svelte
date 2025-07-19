@@ -231,6 +231,9 @@
         case 'phase.change':
           currentPhase = event.payload.phase;
           phaseEnd = event.payload.phase_ends_at;
+          if (currentPhase === 'ended') {
+            alert("Game ended!");
+          }
           break;
 
         default:
@@ -259,7 +262,9 @@
 
 {#if showChatModal}
   <div class="modal">
-    <h1 class="chat-timer">{formatDuration(phaseMillisecondsLeft)}</h1>
+    {#if currentPhase !== 'lobby' || (currentPhase === 'lobby' && users.length >= 4)} 
+      <h1 class="chat-timer">{formatDuration(phaseMillisecondsLeft)}</h1>
+    {/if}
     <Chat {messages} {sendMessageHandler} />
   </div>
 {/if}
