@@ -204,6 +204,9 @@
           } else {
             users.forEach(p => votingSelectedByOthers[p] = 0)
           }
+
+
+          setNightTheme(currentPhase === 'night');
           break;
 
         case 'message.received':
@@ -241,6 +244,17 @@
   onMount(() => setInterval(() => {
     ws.send(JSON.stringify({ type: 'game.sync_request', playerId: userUuid }));
   }, 1000))
+
+  /**
+     * @param {boolean} night
+     */
+  function setNightTheme(night) {
+    if (night) {
+      window.document.body.classList.add('night');
+    } else {
+      window.document.body.classList.remove('night');
+    }
+  }
 </script>
 
 {#if showChatModal}
@@ -315,6 +329,10 @@
     font-family: sans-serif;
     height: 100vh;
     overflow: hidden;
+  }
+
+  :global(body.night) {
+    background: url("/city-theme-bg-night.png") center/cover no-repeat !important;
   }
 
   :global(.overlay) {
