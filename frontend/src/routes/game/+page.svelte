@@ -6,10 +6,10 @@
   import UserList from "$lib/components/UserList.svelte";
   import { page } from "$app/state";
 
-  let now = $state(Date.now());
+  let now = $state(Date.now() / 1000.0);  // in seconds to match Python code
   onMount(() => {
     const id = setInterval(() => {
-      now = Date.now();
+      now = Date.now() / 1000.0;
       gameInfo.nextPhase = votingMillisecondsLeft
     }, 500); // 500 for smoother display
     return () => clearInterval(id);
@@ -64,7 +64,7 @@
   let showChatModal = $derived(gameInfo.phase === "day" || gameInfo.phase === "lobby");
 
   let sendMessageHandler = (/** @type {string} */ msgText) => {
-    const payload = { actor_id: gameInfo.uuid, timestamp: new Date().toISOString(), 'text': msgText };
+    const payload = { actor_id: gameInfo.uuid, timestamp: new Date().getUTCMilliseconds() / 1000.0, 'text': msgText };
     ws.send(JSON.stringify({ type: 'message.send', payload }));
   };
 
@@ -138,10 +138,10 @@
         case 'game.state':
           console.log('received game state')
           const st = event.payload;
-          gameInfo = { lobbyCode: roomId, phase: st.phase, uuid: gameInfo.uuid };
-          let phaseEnd = (new Date(st.logs[st.logs.length-1]?.timestamp || Date.now()).getTime());
+          let phaseEnd = st.phase_ends_at;
           votingEnd = phaseEnd
           chatEnd = phaseEnd
+          gameInfo = { lobbyCode: roomId, phase: st.phase, uuid: gameInfo.uuid, nextPhase: phaseEnd - now };
           
           console.log('mapping users')
 
@@ -175,7 +175,7 @@
 
         case 'phase.change':
           gameInfo['phase'] = event.payload.phase;
-          chatEnd = votingEnd = new Date(event.payload.ends_at).getTime();
+          chatEnd = votingEnd = event.payload.phase_ends_at;
           if (showVoting) {
             votingPrompt = 'Eliminate user?';
             votingOptions = users.filter(u => !eliminated.includes(u));
@@ -192,6 +192,10 @@
   }
 
   onMount(connect)
+  const requestGameStateSync = () => {
+    ws.send(JSON.stringify({ type: 'game.sync_request', playerId: gameInfo.uuid }));
+  }
+  onMount(() => setInterval(requestGameStateSync, 1000))
 
   /**
    * @param {number} ms

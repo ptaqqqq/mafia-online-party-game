@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 import random
-from typing import Dict, List, Optional
+from typing import Dict, List
 from schemas.game import (
     ActionAck,
     ActionAckPayload,
@@ -10,6 +10,7 @@ from schemas.game import (
     EveningNewsPayload,
     GameEvent,
     GameLogEntry,
+    GameStateRequest,
     GameStateSync,
     GameStateSyncPayload,
     MessageReceived,
@@ -57,9 +58,9 @@ class GameManager:
         self.players: Dict[str, PlayerAdapter] = dict()
         self.player_names: Dict[str, str] = dict()
         self.lobby = True
-        self.next_phase_timestamp: datetime = datetime.now(tz=timezone.utc) + timedelta(
+        self.next_phase_timestamp: float = (datetime.now(tz=timezone.utc) + timedelta(
             minutes=1, milliseconds=499
-        )
+        )).timestamp()
         self.cast_votes: Dict[str, str] = defaultdict(str)
         self.event_log: List[GameLogEntry] = []
 
@@ -131,6 +132,7 @@ class GameManager:
                     for k, v in self.game_state.players.items()
                 ],
                 phase=("lobby" if self.lobby else self.game_state.phase.value),
+                phase_ends_at=self.next_phase_timestamp,
                 votes=self.cast_votes,
                 winner=winner,
                 logs=self.event_log,
@@ -155,6 +157,7 @@ class GameManager:
                     for k, v in self.game_state.players.items()
                 ],
                 phase=("lobby" if self.lobby else self.game_state.phase.value),
+                phase_ends_at=self.next_phase_timestamp,
                 votes=self.cast_votes,
                 winner=winner,
                 logs=self.event_log,
@@ -187,14 +190,14 @@ class GameManager:
             )
         self._reset_votes()
 
-        self.next_phase_timestamp = datetime.now(tz=timezone.utc) + timedelta(
+        self.next_phase_timestamp = (datetime.now(tz=timezone.utc) + timedelta(
             seconds=self.day_duration_s
-        )
+        )).timestamp()
         await self._broadcast(
             PhaseChange(
                 type="phase.change",
                 payload=PhaseChangePayload(
-                    phase="day", ends_at=self.next_phase_timestamp.isoformat()
+                    phase="day", ends_at=self.next_phase_timestamp
                 ),
             )
         )
@@ -204,14 +207,14 @@ class GameManager:
     async def _end_day(self):
         self.game_state.end_day()
         self._reset_votes()
-        self.next_phase_timestamp = datetime.now(tz=timezone.utc) + timedelta(
+        self.next_phase_timestamp = (datetime.now(tz=timezone.utc) + timedelta(
             seconds=self.vote_duration_s
-        )
+        )).timestamp()
         await self._broadcast(
             PhaseChange(
                 type="phase.change",
                 payload=PhaseChangePayload(
-                    phase="voting", ends_at=self.next_phase_timestamp.isoformat()
+                    phase="voting", ends_at=self.next_phase_timestamp
                 ),
             )
         )
@@ -230,14 +233,14 @@ class GameManager:
             )
         self._reset_votes()
 
-        self.next_phase_timestamp = datetime.now(tz=timezone.utc) + timedelta(
+        self.next_phase_timestamp = (datetime.now(tz=timezone.utc) + timedelta(
             seconds=self.night_duration_s
-        )
+        )).timestamp()
         await self._broadcast(
             PhaseChange(
                 type="phase.change",
                 payload=PhaseChangePayload(
-                    phase="night", ends_at=self.next_phase_timestamp.isoformat()
+                    phase="night", ends_at=self.next_phase_timestamp
                 ),
             )
         )
@@ -246,6 +249,9 @@ class GameManager:
 
     def _assign_roles_randomly(self):
         uuid_list = list(self.players.keys())
+        if len(uuid_list) <= 4:
+            # Otherwise the game ends instantly
+            self.mafiosi_count = 1
         mafia_uuids = random.sample(uuid_list, k=self.mafiosi_count)
         for uuid in uuid_list:
             if uuid in mafia_uuids:
@@ -256,10 +262,10 @@ class GameManager:
     async def _tick(self):
         # reset the timer to one minute, ad infinitum
         if self.lobby and len(self.players) < 4:
-            self.next_phase_timestamp = datetime.now(tz=timezone.utc) + timedelta(
+            self.next_phase_timestamp = (datetime.now(tz=timezone.utc) + timedelta(
                 minutes=1, milliseconds=499
-            )
-        elif self.next_phase_timestamp <= datetime.now(tz=timezone.utc):
+            )).timestamp()
+        elif self.next_phase_timestamp <= datetime.now(tz=timezone.utc).timestamp():
             if self.lobby:
                 self.lobby = False
                 self._assign_roles_randomly()
@@ -364,6 +370,10 @@ class GameManager:
                             ),
                         )
                     )
+            case GameStateRequest(type="game.sync_request", player_id=player_id):
+                await player.receive_event(
+                    self._construct_confidentially_revealing_game_state_sync_event(self.game_state.players[player_id]["role"]),
+                )
             case _:
                 await player.receive_event(
                     ActionAck(
