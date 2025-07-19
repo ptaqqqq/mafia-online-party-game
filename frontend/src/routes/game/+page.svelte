@@ -147,6 +147,36 @@
   };``
 
 
+    /**
+     * @param {string | null} message
+     */
+function showAlert(message, timeout = 3000) {
+  const container = document.getElementById('nonBlockingAlerts')
+    || Object.assign(document.body.appendChild(document.createElement('div')), {
+         id: 'nonBlockingAlerts',
+         style: 'position:fixed;top:1rem;right:1rem;display:flex;flex-direction:column;gap:.5rem;z-index:9999;'
+       });
+
+  const alert = document.createElement('div');
+  alert.className = 'non-blocking-alert';
+  alert.textContent = message;
+  // click to dismiss early
+  alert.addEventListener('click', () => remove(alert));
+  container.appendChild(alert);
+
+  // trigger CSS animation
+  requestAnimationFrame(() => alert.classList.add('show'));
+
+  // auto‑remove
+  const remove = (/** @type {HTMLDivElement} */ el) => {
+    el.classList.remove('show');
+    el.addEventListener('transitionend', () => el.remove(), { once: true });
+  };
+  setTimeout(() => remove(alert), timeout);
+}
+
+
+
   ///////////////
   // Websocket //
   ///////////////
@@ -224,6 +254,7 @@
         case 'action.morning_news':
           addTextToStream({ id: Date.now(), text: `Player ${userDisplayNames[event.payload.target_id]} has been killed by the mafia.` });
           chatInstance.addMessage({ id: Date.now(), user: 'The mafia times', text: `Player ${userDisplayNames[event.payload.target_id]} has been killed by the mafia.` });
+          showAlert(`Player ${userDisplayNames[event.payload.target_id]} has been killed by the mafia.`);
           break;
         case 'action.evening_news':
           addTextToStream({ id: Date.now(), text: `Player ${userDisplayNames[event.payload.target_id]} has been voted off.` });
@@ -282,6 +313,8 @@
     <Chat bind:this={chatInstance} {messages} {sendMessageHandler} />
   </div>
 {/if}
+
+<div id="nonBlockingAlerts"></div>
 
 <main>
   <div class="main-area">
@@ -492,5 +525,31 @@
     display: flex;
     flex-direction: column;
     gap: 0.5rem;
+  }
+
+  #nonBlockingAlerts {
+    position: fixed;
+    top: 1rem;
+    right: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    z-index: 9999;
+  }
+
+  .non-blocking-alert {
+    background: #333;
+    color: #fff;
+    padding: 0.6rem 1rem;
+    border-radius: 4px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+    opacity: 0;
+    transform: translateY(-10px);
+    transition: opacity 0.3s ease, transform 0.3s ease;
+    cursor: pointer;
+  }
+  .non-blocking-alert.show {
+    opacity: 1;
+    transform: translateY(0);
   }
 </style>
