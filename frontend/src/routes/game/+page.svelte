@@ -287,7 +287,6 @@
       <LobbyInfo lobbySettings={gameInfo} />
     </div>
     <div class="text-stream overlay" bind:this={textStream}>
-      <h1>Game Theme</h1>
       {#each streamedText as streamed (streamed.id)}
         <div class="text-stream-element" transition:fade>
           <p>{streamed.text}</p>
