@@ -46,10 +46,10 @@ class GameManager:
         self,
         mafiosi_count: int = 2,
         night_duration_s=20,
-        day_duration_s=15,
+        day_duration_s=60,
         vote_duration_s=20,
-        lobby_duration_s=30,
-        ended_duation_s=30
+        lobby_duration_s=60,
+        ended_duation_s=20
     ):
         self.mafiosi_count = mafiosi_count
         self.night_duration_s = night_duration_s
