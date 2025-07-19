@@ -203,10 +203,10 @@
               votingSelectedByPlayer = '';
             }
 
+            users.forEach(p => votingSelectedByOthers[p] = 0);
             Object.entries(st_votes).forEach(([actorId, targetId]) => {
               if (actorId === userUuid) return;
-              users.forEach(p => votingSelectedByOthers[p] = 0);
-              votingSelectedByOthers[targetId] = (votingSelectedByOthers[targetId] || 0) + 1;
+              votingSelectedByOthers[targetId] = votingSelectedByOthers[targetId] + 1;
             });
           } else {
             users.forEach(p => votingSelectedByOthers[p] = 0)
