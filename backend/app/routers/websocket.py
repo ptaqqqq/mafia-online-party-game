@@ -17,6 +17,8 @@ from schemas.game import (
     PlayerJoin,
     PlayerLeave,
     PlayerLeavePayload,
+    PlayerLeft,
+    PlayerLeftPayload,
     SendMessage,
     Vote,
 )
@@ -84,14 +86,12 @@ async def websocket_endpoint(ws: WebSocket, room_id: str):
                     ).model_dump()
                 )
     except WebSocketDisconnect:
-        logging.info(f"Websocket {ws_uuid} disconnected")
-        await room_game_managers[room_id].receive_event(
-            PlayerLeave(
-                type="player.leave",
-                payload=PlayerLeavePayload(player_id=ws_uuid),
-            ),
-            uuid_adapters[ws_uuid],
+        gm = room_game_managers[room_id]
+        if ws_uuid in gm.players:
+            gm.remove_player(ws_uuid)
+            await gm._broadcast(
+                PlayerLeft(type="player.left", payload=PlayerLeftPayload(player_id=ws_uuid))
         )
         del uuid_adapters[ws_uuid]
-        if len(room_game_managers[room_id].players) == 0:
+        if not gm.players:
             del room_game_managers[room_id]
