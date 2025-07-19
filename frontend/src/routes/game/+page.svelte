@@ -39,6 +39,7 @@
   let nickname = page.url.searchParams.get('nickname');
   let currentPhase = $state('lobby');
   let userUuid = $state('n/a')
+  let lastPhase = $state(Date.now() / 1000.0);
   let phaseEnd = $state(Date.now() / 1000.0);
   let winner = $state('n/a')
 
@@ -106,7 +107,7 @@
      * @type {{ id: number; user: string; text: string; }[]}
      */
   let messages = $state([]);
-  let showChatModal = $derived((currentPhase === "day" || currentPhase === "lobby") && !(eliminated.includes(userUuid)));
+  let showChatModal = $derived((currentPhase === "day" || currentPhase === "lobby") && !(eliminated.includes(userUuid)) && (now - lastPhase > 5.0));
 
   let chatInstance = $state();
 
@@ -269,6 +270,7 @@ function showAlert(message, timeout = 3000) {
 
         case 'phase.change':
           currentPhase = event.payload.phase;
+          lastPhase = phaseEnd;
           phaseEnd = event.payload.phase_ends_at;
           if (currentPhase === 'ended') {
             alert("Game ended!");
