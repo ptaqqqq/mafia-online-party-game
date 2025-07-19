@@ -85,6 +85,7 @@
    */
   export async function addTextToStream(textObj) {
     streamedText.push(textObj);
+    streamedText = streamedText;
     tick();
     scrollToBottom(textStream);
   }
@@ -242,7 +243,7 @@
           } else if (currentPhase === 'lobby') {
             addTextToStream({ id: Date.now(), text: "Game will start automatically once at least four players join." });
           } else {
-            addTextToStream({ id: Date.now(), text: currentPhase + " began..." });
+            addTextToStream({ id: Date.now(), text: "A new " + currentPhase + " began..." });
           }
           break;
 
