@@ -213,6 +213,7 @@
 
         case 'action.morning_news':
           addTextToStream({ id: Date.now(), text: `Player ${event.payload.target_id} has been killed by the mafia.` });
+          messages.push({ id: Date.now(), user: 'The Mafia Times', text: `Player ${event.payload.target_id} has been killed by the mafia.` });
           break;
         case 'action.evening_news':
           addTextToStream({ id: Date.now(), text: `Player ${event.payload.target_id} has been voted off.` });
