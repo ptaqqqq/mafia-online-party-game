@@ -7,6 +7,8 @@ export default defineConfig(({ mode }) => {
 	return {
 		plugins: [sveltekit()],
 		server: {
+			host: true,
+			port: 3000,
 			proxy: {
 				'/ws': {
 					target: env.VITE_WEBSOCKET_URL,
