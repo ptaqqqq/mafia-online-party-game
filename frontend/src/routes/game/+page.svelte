@@ -48,7 +48,7 @@
     nickname: nickname,
     phase: currentPhase,
     uuid: userUuid,
-    nextPhase: phaseMillisecondsLeft,
+    nextPhase: '' + Math.round(phaseMillisecondsLeft / 1000) + ' s',
     winner: winner
   });
 
@@ -74,10 +74,7 @@
 
   /// Text stream ///
   let streamedText = $state([
-    { id: 1, text: "Lorem ipsum dolor sit amet." },
-    { id: 2, text: "Wlazł kotek na płotek." },
-    { id: 3, text: "Litwo, ojczyzno moja." },
-    { id: 4, text: "To be or not to be." },
+    { id: 1, text: "Game will start automatically once at least four players join." },
   ]);
   /**
    * @type {HTMLDivElement}
@@ -214,12 +211,10 @@
             users.forEach(p => votingSelectedByOthers[p] = 0)
           }
 
-
           setNightTheme(currentPhase === 'night');
           break;
 
         case 'message.received':
-          // TODO: autoscroll
           chatInstance.addMessage({ id: Date.now(), user: userDisplayNames[event.payload.actor_id], text: event.payload.text });
           break;
 
@@ -244,6 +239,8 @@
           if (currentPhase === 'ended') {
             alert("Game ended!");
             addTextToStream({ id: Date.now(), text: "The game ended. Winner: " + winner + "!" });
+          } else if (currentPhase === 'lobby') {
+            addTextToStream({ id: Date.now(), text: "Game will start automatically once at least four players join." });
           } else {
             addTextToStream({ id: Date.now(), text: currentPhase + " began..." });
           }
