@@ -68,8 +68,6 @@
     */
   let mafiosi = $state([]);
 
-  let playerEliminated = $derived(userUuid in eliminated);
-
 
 
   /// Text stream ///
@@ -108,7 +106,7 @@
      * @type {{ id: number; user: string; text: string; }[]}
      */
   let messages = $state([]);
-  let showChatModal = $derived((currentPhase === "day" || currentPhase === "lobby") && !playerEliminated);
+  let showChatModal = $derived((currentPhase === "day" || currentPhase === "lobby") && !(eliminated.includes(userUuid)));
 
   let chatInstance = $state();
 
@@ -119,7 +117,7 @@
 
 
   /// Voting ///
-  let showVoting = $derived((currentPhase === "voting" || (currentPhase === "night" && mafiosi.includes(userUuid))) && !playerEliminated);
+  let showVoting = $derived((currentPhase === "voting" || (currentPhase === "night" && mafiosi.includes(userUuid))) && !(eliminated.includes(userUuid)));
   let votingPrompt = $derived.by(() => {
     if (currentPhase === "voting") {
       return "Who is the most suspicious?";
