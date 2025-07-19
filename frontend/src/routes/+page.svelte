@@ -24,9 +24,7 @@
   
       console.log('Joining lobby:', lobbyCode, 'as', username);
 
-      // TODO: implement real logic
-
-      // request to api...
+      window.location.assign('/game'+ '?room_id=' + lobbyCode + "&nickname=" + username);
     }
 
     function joinLobby() {
@@ -41,9 +39,8 @@
 
       console.log('User choose to create a new lobby');
       
-      // TODO: implement real logic
-
-      // request to api...
+      let randomCode = (Math.random() + 1).toString(36).substring(7).toUpperCase();
+      window.location.assign('/game'+ '?room_id=' + randomCode + "&nickname=" + username);
     }
 
     function handleEscape(e: KeyboardEvent) {
