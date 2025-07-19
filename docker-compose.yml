@@ -1,0 +1,19 @@
+services:
+  api:
+    build:
+      context: backend
+      target: builder
+    container_name: mafia-online-party-game-fastapi
+    ports:
+      - '${BACKEND_PORT}:8000'
+    restart: "no"
+  web:
+    build:
+      context: frontend
+      dockerfile: Dockerfile
+      target: runtime
+    container_name: mafia-online-party-game-web
+    ports:
+      - "${FRONTEND_PORT}:3000"
+    environment:
+      NODE_ENV: production
