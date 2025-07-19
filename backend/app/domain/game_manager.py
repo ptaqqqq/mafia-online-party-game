@@ -347,15 +347,6 @@ class GameManager:
                             payload=PlayerLeftPayload(player_id=payload.player_id),
                         )
                     )
-                else:
-                    await player.receive_event(
-                        ActionAck(
-                            type="action.ack",
-                            payload=ActionAckPayload(
-                                success=False, message="Cannot do this!"
-                            ),
-                        )
-                    )
             case NightAction(payload=payload):
                 if (
                     self.game_state.phase == Phase.NIGHT
