@@ -80,12 +80,15 @@ class GameManager:
             ):
                 await player.receive_event(event)
 
-    def add_player(self, uuid: str, name: str, player: PlayerAdapter):
-        self.players[uuid] = player
-        self.player_names[uuid] = name
+    def _add_default_state_player_to_game_state(self, uuid: str):
         self.game_state.add_player(
             uuid, PlayerGameState(role=Role.INNOCENT, alive=True)
         )
+
+    def add_player(self, uuid: str, name: str, player: PlayerAdapter):
+        self.players[uuid] = player
+        self.player_names[uuid] = name
+        self._add_default_state_player_to_game_state(uuid)
 
     def remove_player(self, uuid: str):
         del self.players[uuid]
@@ -179,6 +182,7 @@ class GameManager:
     async def _check_game_over(self):
         game_over = self.game_state.check_game_over()
         if game_over:
+            self.next_phase_timestamp = (datetime.now(tz=timezone.utc) + timedelta(seconds=self.ended_duration_s)).timestamp()
             await self._broadcast(self._construct_revealing_game_state_sync_event())
 
     async def _end_night(self):
@@ -251,6 +255,15 @@ class GameManager:
         await self._sync_game_state()
         await self._check_game_over()
 
+    async def _restart_game(self):
+        self._reset_votes()
+        self.lobby = True
+        self.next_phase_timestamp = (datetime.now(tz=timezone.utc) + timedelta(seconds=self.lobby_duration_s)).timestamp()
+        self.game_state = GameState()
+        for player_uuid in self.players.keys():
+            self._add_default_state_player_to_game_state(player_uuid)
+        await self._sync_game_state()
+
     def _assign_roles_randomly(self):
         uuid_list = list(self.players.keys())
         if len(uuid_list) <= 4:
@@ -281,6 +294,8 @@ class GameManager:
                 await self._end_day()
             elif self.game_state.phase == Phase.VOTING:
                 await self._end_voting()
+            elif self.game_state.phase == Phase.ENDED:
+                await self._restart_game()
         await self._sync_game_state()
 
     async def _receive_vote(self, voter: PlayerAdapter, vote: Vote | NightAction):
