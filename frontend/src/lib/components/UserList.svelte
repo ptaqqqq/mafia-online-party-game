@@ -1,18 +1,18 @@
 <script>
   let { 
     users: user_ids = $bindable([]),
-    user_display_names = $bindable({}),
+    userDisplayNames = $bindable({}),
     eliminated = $bindable([]),
     mafiosi = $bindable([])
   } = $props()
 
-  user_ids.filter(u => !(u in user_display_names)).forEach(u => user_display_names[u] = u);
+  user_ids.filter(u => !(u in userDisplayNames)).forEach(u => userDisplayNames[u] = u);
 </script>
 
 {#each user_ids as u}
   <div class="user-item">
-    <img src="https://avatar.iran.liara.run/public?username={u}" alt="{user_display_names[u]}'s avatar" />
-    <span class={[eliminated.includes(u) && 'eliminated', mafiosi.includes(u) && 'mafioso']}>{user_display_names[u]}</span>
+    <img src="https://avatar.iran.liara.run/public?username={u}" alt="{userDisplayNames[u]}'s avatar" />
+    <span class={[eliminated.includes(u) && 'eliminated', mafiosi.includes(u) && 'mafioso']}>{userDisplayNames[u]}</span>
   </div>
 {/each}
 

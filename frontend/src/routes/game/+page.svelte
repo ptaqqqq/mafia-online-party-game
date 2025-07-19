@@ -155,7 +155,7 @@
   /**
    * @type {Record<string, string>}
    */
-  let user_display_names = $state({})
+  let userDisplayNames = $state({});
 
   function connect() {
     ws = new WebSocket(`/ws/${lobbyCode}`);
@@ -185,16 +185,15 @@
           const st_users = st.players;
           const st_votes = st.votes;
 
-          // TODO: switch to displaying player names instead of UUIDs
           // @ts-ignore
           users = st_users.map(p => p.player_id);
           // @ts-ignore
           mafiosi = st_users.filter(p => p.role_revealed === 'mafia').map(p => p.player_id);
           // @ts-ignore
           eliminated = st_users.filter(p => p.alive === false).map(p => p.player_id);
-          user_display_names = {};
+          userDisplayNames = {};
           // @ts-ignore
-          st_users.forEach(p => user_display_names[p.player_id] = p.name);
+          st_users.forEach(p => userDisplayNames[p.player_id] = p.name);
           
           if (st_votes) {
             if (st_votes[userUuid]) {
@@ -218,14 +217,14 @@
 
         case 'message.received':
           // TODO: autoscroll
-          messages.push({ id: Date.now(), user: user_display_names[event.payload.actor_id], text: event.payload.text });
+          messages.push({ id: Date.now(), user: userDisplayNames[event.payload.actor_id], text: event.payload.text });
           break;
 
         case 'action.morning_news':
-          addTextToStream({ id: Date.now(), text: `Player ${user_display_names[event.payload.target_id]} has been killed by the mafia.` });
+          addTextToStream({ id: Date.now(), text: `Player ${userDisplayNames[event.payload.target_id]} has been killed by the mafia.` });
           break;
         case 'action.evening_news':
-          addTextToStream({ id: Date.now(), text: `Player ${user_display_names[event.payload.target_id]} has been voted off.` });
+          addTextToStream({ id: Date.now(), text: `Player ${userDisplayNames[event.payload.target_id]} has been voted off.` });
           break;
 
         case 'action.vote_cast':
@@ -311,7 +310,7 @@
                 <span>(</span>
               {/if}
 
-              {user_display_names[option]}
+              {userDisplayNames[option]}
 
               {#if votingSelectedByPlayer === option}
                 <span>)</span>
@@ -328,7 +327,7 @@
     </div>
 
     <div class="user-list overlay">
-      <UserList {users} {mafiosi} {eliminated} {user_display_names}/>
+      <UserList {users} {mafiosi} {eliminated} {userDisplayNames}/>
     </div>
   </div>
 </main>
