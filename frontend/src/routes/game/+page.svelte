@@ -169,6 +169,8 @@
         case 'player.uuid':
           userUuid = event.payload.uuid
           const payload = { player_id: userUuid, name: nickname };
+          console.log('Sending hello like:')
+          console.log(payload);
           ws.send(JSON.stringify({ type: 'player.join', payload }));
           console.log('sent hello!')
           break;
