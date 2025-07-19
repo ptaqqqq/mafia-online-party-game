@@ -117,7 +117,7 @@ class VoteCast(GameEvent):
 
 
 class PhaseChangePayload(CamelModel):
-    phase: Literal["day", "night", "voting"]
+    phase: Literal["lobby", "day", "night", "voting", "ended"]
     ends_at: float = Field(..., description="When this phase ends (Unix timestamp)")
 
 
