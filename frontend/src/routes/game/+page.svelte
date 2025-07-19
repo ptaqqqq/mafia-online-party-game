@@ -35,8 +35,8 @@
 
 
   /// Game info ///
-  let lobbyCode = page.params.room_id;
-  let nickname = page.params.nickname;
+  let lobbyCode = page.url.searchParams.get('room_id');
+  let nickname = page.url.searchParams.get('nickname');
   let currentPhase = $state('lobby');
   let userUuid = $state('n/a')
   let phaseEnd = $state(Date.now() / 1000.0);
@@ -158,8 +158,7 @@
   let user_display_names = $state({})
 
   function connect() {
-    const roomId = page.url.searchParams.get('room_id');
-    ws = new WebSocket(`/ws/${roomId}`);
+    ws = new WebSocket(`/ws/${lobbyCode}`);
 
     ws.onopen = () => console.log('WebSocket connected');
     ws.onmessage = async (evt) => {
@@ -169,10 +168,9 @@
         case 'player.uuid':
           userUuid = event.payload.uuid
           const payload = { player_id: userUuid, name: nickname };
-          console.log('Sending hello like:')
           console.log(payload);
           ws.send(JSON.stringify({ type: 'player.join', payload }));
-          console.log('sent hello!')
+          console.log('sent hello!');
           break;
 
         case 'game.state':
