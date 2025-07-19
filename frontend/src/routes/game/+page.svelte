@@ -36,6 +36,7 @@
 
   /// Game info ///
   let lobbyCode = page.params.room_id;
+  let nickname = page.params.nickname;
   let currentPhase = $state('lobby');
   let userUuid = $state('n/a')
   let phaseEnd = $state(Date.now() / 1000.0);
@@ -44,6 +45,7 @@
   let phaseMillisecondsLeft = $derived((phaseEnd - now) * 1000);
   let gameInfo = $derived({
     lobbyCode: lobbyCode,
+    nickname: nickname,
     phase: currentPhase,
     uuid: userUuid,
     nextPhase: phaseMillisecondsLeft,
@@ -150,7 +152,10 @@
     */
   let ws;
 
-  let display_names_per_id = $state({})
+  /**
+   * @type {Record<string, string>}
+   */
+  let user_display_names = $state({})
 
   function connect() {
     const roomId = page.url.searchParams.get('room_id');
@@ -163,7 +168,7 @@
       switch (event.type) {
         case 'player.uuid':
           userUuid = event.payload.uuid
-          const payload = { player_id: userUuid, name: "hello its me" };
+          const payload = { player_id: userUuid, name: nickname };
           ws.send(JSON.stringify({ type: 'player.join', payload }));
           console.log('sent hello!')
           break;
@@ -187,6 +192,9 @@
           mafiosi = st_users.filter(p => p.role_revealed === 'mafia').map(p => p.player_id);
           // @ts-ignore
           eliminated = st_users.filter(p => p.alive === false).map(p => p.player_id);
+          user_display_names = {};
+          // @ts-ignore
+          st_users.forEach(p => user_display_names[p.player_id] = p.name);
           
           if (st_votes) {
             if (st_votes[userUuid]) {
@@ -210,14 +218,14 @@
 
         case 'message.received':
           // TODO: autoscroll
-          messages.push({ id: Date.now(), user: event.payload.actor_id, text: event.payload.text });
+          messages.push({ id: Date.now(), user: user_display_names[event.payload.actor_id], text: event.payload.text });
           break;
 
         case 'action.morning_news':
-          addTextToStream({ id: Date.now(), text: `Player ${event.payload.target_id} has been killed by the mafia.` });
+          addTextToStream({ id: Date.now(), text: `Player ${user_display_names[event.payload.target_id]} has been killed by the mafia.` });
           break;
         case 'action.evening_news':
-          addTextToStream({ id: Date.now(), text: `Player ${event.payload.target_id} has been voted off.` });
+          addTextToStream({ id: Date.now(), text: `Player ${user_display_names[event.payload.target_id]} has been voted off.` });
           break;
 
         case 'action.vote_cast':
@@ -270,7 +278,7 @@
 
 <main>
   <div class="main-area">
-    <div class="lobby-info overlay">r
+    <div class="lobby-info overlay">
       <LobbyInfo lobbySettings={gameInfo} />
     </div>
     <div class="text-stream overlay" bind:this={textStream}>
@@ -303,7 +311,7 @@
                 <span>(</span>
               {/if}
 
-              {option}
+              {user_display_names[option]}
 
               {#if votingSelectedByPlayer === option}
                 <span>)</span>
@@ -320,7 +328,7 @@
     </div>
 
     <div class="user-list overlay">
-      <UserList {users} {mafiosi} {eliminated}/>
+      <UserList {users} {mafiosi} {eliminated} {user_display_names}/>
     </div>
   </div>
 </main>
