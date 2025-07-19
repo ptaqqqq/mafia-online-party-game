@@ -245,6 +245,7 @@
           } else {
             addTextToStream({ id: Date.now(), text: "A new " + currentPhase + " began..." });
           }
+          scrollToBottom(textStream);
           break;
 
         default:
