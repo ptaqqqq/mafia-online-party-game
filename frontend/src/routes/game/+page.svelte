@@ -52,6 +52,24 @@
     winner: winner
   });
 
+  /// User list ///
+  let users = $state(
+    Array.from(
+      { length: 10 },
+      () => "user_" + Math.floor(Math.random() * 10000),
+    ),
+  );
+  /**
+    * @type {string[]}
+    */
+  let eliminated = $state([]);
+  /**
+    * @type {string[]}
+    */
+  let mafiosi = $state([]);
+
+  let playerEliminated = $derived(userUuid in eliminated);
+
 
 
   /// Text stream ///
@@ -95,24 +113,6 @@
     ws.send(JSON.stringify({ type: 'message.send', payload }));
   };
 
-
-  /// User list ///
-  let users = $state(
-    Array.from(
-      { length: 10 },
-      () => "user_" + Math.floor(Math.random() * 10000),
-    ),
-  );
-  /**
-    * @type {string[]}
-    */
-  let eliminated = $state([]);
-  /**
-    * @type {string[]}
-    */
-  let mafiosi = $state([]);
-
-  let playerEliminated = $derived(userUuid in eliminated);
 
   /// Voting ///
   let showVoting = $derived((currentPhase === "voting" || (currentPhase === "night" && mafiosi.includes(userUuid))) && !playerEliminated);
