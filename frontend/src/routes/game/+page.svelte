@@ -243,6 +243,9 @@
           phaseEnd = event.payload.phase_ends_at;
           if (currentPhase === 'ended') {
             alert("Game ended!");
+            addTextToStream({ id: Date.now(), text: "The game ended. Winner: " + winner + "!" });
+          } else {
+            addTextToStream({ id: Date.now(), text: currentPhase + " began..." });
           }
           break;
 
