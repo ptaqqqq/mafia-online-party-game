@@ -17,9 +17,17 @@
   export async function sendMessage() {
     if (!newMessage.trim()) return;
     sendMessageHandler(newMessage);
-    newMessage = ''
+    newMessage = '';
     await tick();
-    scrollToBottom(messagesContainer)
+    scrollToBottom(messagesContainer);
+  }
+
+  // @ts-ignore
+  export async function addMessage(msg) {
+    messages.push(msg);
+    messages = messages;
+    await tick();
+    scrollToBottom(messagesContainer);
   }
   
   // @ts-ignore

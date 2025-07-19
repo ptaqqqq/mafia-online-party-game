@@ -39,6 +39,7 @@
   let nickname = page.url.searchParams.get('nickname');
   let currentPhase = $state('lobby');
   let userUuid = $state('n/a')
+  let lastPhase = $state(Date.now() / 1000.0);
   let phaseEnd = $state(Date.now() / 1000.0);
   let winner = $state('n/a')
 
@@ -48,7 +49,7 @@
     nickname: nickname,
     phase: currentPhase,
     uuid: userUuid,
-    nextPhase: phaseMillisecondsLeft,
+    nextPhase: '' + Math.round(phaseMillisecondsLeft / 1000) + ' s',
     winner: winner
   });
 
@@ -68,16 +69,11 @@
     */
   let mafiosi = $state([]);
 
-  let playerEliminated = $derived(userUuid in eliminated);
-
 
 
   /// Text stream ///
   let streamedText = $state([
-    { id: 1, text: "Lorem ipsum dolor sit amet." },
-    { id: 2, text: "Wlazł kotek na płotek." },
-    { id: 3, text: "Litwo, ojczyzno moja." },
-    { id: 4, text: "To be or not to be." },
+    { id: 1, text: "Game will start automatically once at least four players join." },
   ]);
   /**
    * @type {HTMLDivElement}
@@ -88,6 +84,7 @@
    */
   export async function addTextToStream(textObj) {
     streamedText.push(textObj);
+    streamedText = streamedText;
     tick();
     scrollToBottom(textStream);
   }
@@ -95,6 +92,10 @@
     scrollToBottom(textStream)
     window.addEventListener('resize', () => { scrollToBottom(textStream) });
   });
+  onMount(() => setInterval(() => {
+    // dirty hack just in case
+    scrollToBottom(textStream);
+  }, 2000))
   // @ts-ignore
   const scrollToBottom = async (node) => {
     node.scroll({ top: node.scrollHeight, behavior: "smooth" });
@@ -106,7 +107,9 @@
      * @type {{ id: number; user: string; text: string; }[]}
      */
   let messages = $state([]);
-  let showChatModal = $derived((currentPhase === "day" || currentPhase === "lobby") && !playerEliminated);
+  let showChatModal = $derived((currentPhase === "day") && !(eliminated.includes(userUuid)) && (now - lastPhase > 10.0));
+
+  let chatInstance = $state();
 
   let sendMessageHandler = (/** @type {string} */ msgText) => {
     const payload = { actor_id: userUuid, timestamp: now, 'text': msgText };
@@ -115,7 +118,7 @@
 
 
   /// Voting ///
-  let showVoting = $derived((currentPhase === "voting" || (currentPhase === "night" && mafiosi.includes(userUuid))) && !playerEliminated);
+  let showVoting = $derived((currentPhase === "voting" || (currentPhase === "night" && mafiosi.includes(userUuid))) && !(eliminated.includes(userUuid)));
   let votingPrompt = $derived.by(() => {
     if (currentPhase === "voting") {
       return "Who is the most suspicious?";
@@ -143,6 +146,36 @@
       }
     }
   };``
+
+
+    /**
+     * @param {string | null} message
+     */
+function showAlert(message, timeout = 3000) {
+  const container = document.getElementById('nonBlockingAlerts')
+    || Object.assign(document.body.appendChild(document.createElement('div')), {
+         id: 'nonBlockingAlerts',
+         style: 'position:fixed;top:1rem;right:1rem;display:flex;flex-direction:column;gap:.5rem;z-index:9999;'
+       });
+
+  const alert = document.createElement('div');
+  alert.className = 'non-blocking-alert';
+  alert.textContent = message;
+  // click to dismiss early
+  alert.addEventListener('click', () => remove(alert));
+  container.appendChild(alert);
+
+  // trigger CSS animation
+  requestAnimationFrame(() => alert.classList.add('show'));
+
+  // auto‑remove
+  const remove = (/** @type {HTMLDivElement} */ el) => {
+    el.classList.remove('show');
+    el.addEventListener('transitionend', () => el.remove(), { once: true });
+  };
+  setTimeout(() => remove(alert), timeout);
+}
+
 
 
   ///////////////
@@ -212,17 +245,17 @@
             users.forEach(p => votingSelectedByOthers[p] = 0)
           }
 
-
           setNightTheme(currentPhase === 'night');
           break;
 
         case 'message.received':
-          // TODO: autoscroll
-          messages.push({ id: Date.now(), user: userDisplayNames[event.payload.actor_id], text: event.payload.text });
+          chatInstance.addMessage({ id: Date.now(), user: userDisplayNames[event.payload.actor_id], text: event.payload.text });
           break;
 
         case 'action.morning_news':
           addTextToStream({ id: Date.now(), text: `Player ${userDisplayNames[event.payload.target_id]} has been killed by the mafia.` });
+          chatInstance.addMessage({ id: Date.now(), user: 'The mafia times', text: `Player ${userDisplayNames[event.payload.target_id]} has been killed by the mafia.` });
+          showAlert(`Player ${userDisplayNames[event.payload.target_id]} has been killed by the mafia.`);
           break;
         case 'action.evening_news':
           addTextToStream({ id: Date.now(), text: `Player ${userDisplayNames[event.payload.target_id]} has been voted off.` });
@@ -237,10 +270,17 @@
 
         case 'phase.change':
           currentPhase = event.payload.phase;
+          lastPhase = phaseEnd;
           phaseEnd = event.payload.phase_ends_at;
           if (currentPhase === 'ended') {
             alert("Game ended!");
+            addTextToStream({ id: Date.now(), text: "The game ended. Winner: " + winner + "!" });
+          } else if (currentPhase === 'lobby') {
+            addTextToStream({ id: Date.now(), text: "Game will start automatically once at least four players join." });
+          } else {
+            addTextToStream({ id: Date.now(), text: "A new " + currentPhase + " began..." });
           }
+          scrollToBottom(textStream);
           break;
 
         default:
@@ -272,9 +312,11 @@
     {#if currentPhase !== 'lobby' || (currentPhase === 'lobby' && users.length >= 4)} 
       <h1 class="chat-timer">{formatDuration(phaseMillisecondsLeft)}</h1>
     {/if}
-    <Chat {messages} {sendMessageHandler} />
+    <Chat bind:this={chatInstance} {messages} {sendMessageHandler} />
   </div>
 {/if}
+
+<div id="nonBlockingAlerts"></div>
 
 <main>
   <div class="main-area">
@@ -282,7 +324,6 @@
       <LobbyInfo lobbySettings={gameInfo} />
     </div>
     <div class="text-stream overlay" bind:this={textStream}>
-      <h1>Game Theme</h1>
       {#each streamedText as streamed (streamed.id)}
         <div class="text-stream-element" transition:fade>
           <p>{streamed.text}</p>
@@ -486,5 +527,31 @@
     display: flex;
     flex-direction: column;
     gap: 0.5rem;
+  }
+
+  #nonBlockingAlerts {
+    position: fixed;
+    top: 1rem;
+    right: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    z-index: 9999;
+  }
+
+  .non-blocking-alert {
+    background: #333;
+    color: #fff;
+    padding: 0.6rem 1rem;
+    border-radius: 4px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+    opacity: 0;
+    transform: translateY(-10px);
+    transition: opacity 0.3s ease, transform 0.3s ease;
+    cursor: pointer;
+  }
+  .non-blocking-alert.show {
+    opacity: 1;
+    transform: translateY(0);
   }
 </style>
