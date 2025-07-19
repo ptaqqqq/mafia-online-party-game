@@ -108,6 +108,8 @@
   let messages = $state([]);
   let showChatModal = $derived((currentPhase === "day" || currentPhase === "lobby") && !playerEliminated);
 
+  let chatInstance = $state();
+
   let sendMessageHandler = (/** @type {string} */ msgText) => {
     const payload = { actor_id: userUuid, timestamp: now, 'text': msgText };
     ws.send(JSON.stringify({ type: 'message.send', payload }));
@@ -218,12 +220,12 @@
 
         case 'message.received':
           // TODO: autoscroll
-          messages.push({ id: Date.now(), user: userDisplayNames[event.payload.actor_id], text: event.payload.text });
+          chatInstance.addMessage({ id: Date.now(), user: userDisplayNames[event.payload.actor_id], text: event.payload.text });
           break;
 
         case 'action.morning_news':
           addTextToStream({ id: Date.now(), text: `Player ${userDisplayNames[event.payload.target_id]} has been killed by the mafia.` });
-          messages.push({ id: Date.now(), user: 'The mafia times', text: `Player ${userDisplayNames[event.payload.target_id]} has been killed by the mafia.` });
+          chatInstance.addMessage({ id: Date.now(), user: 'The mafia times', text: `Player ${userDisplayNames[event.payload.target_id]} has been killed by the mafia.` });
           break;
         case 'action.evening_news':
           addTextToStream({ id: Date.now(), text: `Player ${userDisplayNames[event.payload.target_id]} has been voted off.` });
@@ -273,7 +275,7 @@
     {#if currentPhase !== 'lobby' || (currentPhase === 'lobby' && users.length >= 4)} 
       <h1 class="chat-timer">{formatDuration(phaseMillisecondsLeft)}</h1>
     {/if}
-    <Chat {messages} {sendMessageHandler} />
+    <Chat bind:this={chatInstance} {messages} {sendMessageHandler} />
   </div>
 {/if}
 
