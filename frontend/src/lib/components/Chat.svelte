@@ -25,6 +25,7 @@
   // @ts-ignore
   export async function addMessage(msg) {
     messages.push(msg);
+    messages = messages;
     await tick();
     scrollToBottom(messagesContainer);
   }
