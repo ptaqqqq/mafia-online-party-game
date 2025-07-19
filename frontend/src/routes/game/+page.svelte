@@ -154,8 +154,7 @@
 
   function connect() {
     const roomId = page.url.searchParams.get('room_id');
-    const protocol = location.protocol === 'https:' ? 'wss' : 'ws';
-    ws = new WebSocket(`${protocol}://localhost:8000/ws/${roomId}`);
+    ws = new WebSocket(`/ws/${roomId}`);
 
     ws.onopen = () => console.log('WebSocket connected');
     ws.onmessage = async (evt) => {
