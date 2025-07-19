@@ -268,7 +268,9 @@ class GameManager:
         elif self.next_phase_timestamp <= datetime.now(tz=timezone.utc).timestamp():
             if self.lobby:
                 self.lobby = False
+                self.next_phase_timestamp = (datetime.now(tz=timezone.utc) + timedelta(seconds=self.night_duration_s)).timestamp()
                 self._assign_roles_randomly()
+                self._reset_votes()
             elif self.game_state.phase == Phase.NIGHT:
                 await self._end_night()
             elif self.game_state.phase == Phase.DAY:
