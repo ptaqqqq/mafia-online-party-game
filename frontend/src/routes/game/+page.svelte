@@ -88,7 +88,7 @@
      * @type {{ id: number; user: string; text: string; }[]}
      */
   let messages = $state([]);
-  let showChatModal = $derived(currentPhase === "day" || currentPhase === "lobby");
+  let showChatModal = $derived((currentPhase === "day" || currentPhase === "lobby") && !playerEliminated);
 
   let sendMessageHandler = (/** @type {string} */ msgText) => {
     const payload = { actor_id: userUuid, timestamp: now, 'text': msgText };
@@ -112,9 +112,10 @@
     */
   let mafiosi = $state([]);
 
+  let playerEliminated = $derived(userUuid in eliminated);
 
   /// Voting ///
-  let showVoting = $derived(currentPhase === "voting" || (currentPhase === "night" && mafiosi.includes(userUuid)));
+  let showVoting = $derived((currentPhase === "voting" || (currentPhase === "night" && mafiosi.includes(userUuid))) && !playerEliminated);
   let votingPrompt = $derived.by(() => {
     if (currentPhase === "voting") {
       return "Who is the most suspicious?";
