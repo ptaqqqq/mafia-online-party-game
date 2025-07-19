@@ -179,11 +179,16 @@ class GameManager:
                 )
             )
 
+    async def _end_game(self):
+        self.next_phase_timestamp = (datetime.now(tz=timezone.utc) + timedelta(seconds=self.ended_duration_s)).timestamp()
+        await self._broadcast(self._construct_revealing_game_state_sync_event())
+        await self._broadcast(PhaseChange(type="phase.change", payload=PhaseChangePayload(phase="ended", ends_at=self.next_phase_timestamp)))
+
     async def _check_game_over(self):
         game_over = self.game_state.check_game_over()
         if game_over:
-            self.next_phase_timestamp = (datetime.now(tz=timezone.utc) + timedelta(seconds=self.ended_duration_s)).timestamp()
-            await self._broadcast(self._construct_revealing_game_state_sync_event())
+            await self._end_game()
+
 
     async def _end_night(self):
         vote_winner = self._get_vote_winner()
@@ -263,6 +268,7 @@ class GameManager:
         for player_uuid in self.players.keys():
             self._add_default_state_player_to_game_state(player_uuid)
         await self._sync_game_state()
+        await self._broadcast(PhaseChange(type="phase.change", payload=PhaseChangePayload(phase="lobby", ends_at=self.next_phase_timestamp)))
 
     def _assign_roles_randomly(self):
         uuid_list = list(self.players.keys())
