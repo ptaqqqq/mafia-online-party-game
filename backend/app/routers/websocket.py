@@ -82,7 +82,6 @@ async def websocket_endpoint(ws: WebSocket, room_id: str):
                 )
     except WebSocketDisconnect:
         logging.info(f"Websocket {ws_uuid} disconnected")
-    finally:
         await room_game_managers[room_id].receive_event(
             PlayerLeave(
                 type="player.leave",
