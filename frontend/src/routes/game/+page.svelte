@@ -93,6 +93,10 @@
     scrollToBottom(textStream)
     window.addEventListener('resize', () => { scrollToBottom(textStream) });
   });
+  onMount(() => setInterval(() => {
+    // dirty hack just in case
+    scrollToBottom(textStream);
+  }, 2000))
   // @ts-ignore
   const scrollToBottom = async (node) => {
     node.scroll({ top: node.scrollHeight, behavior: "smooth" });
