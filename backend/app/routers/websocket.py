@@ -28,11 +28,17 @@ router = APIRouter()
 class WebSocketPlayerAdapter(PlayerAdapter):
     def __init__(self, ws: WebSocket):
         self.ws = ws
+        self.open = True
 
     @override
     async def receive_event(self, event: GameEvent):
-        logging.info(f"Sending event {event.model_dump_json()}")
-        await self.ws.send_json(event.model_dump())
+        try:
+            if self.open:
+                logging.info(f"Sending event {event.model_dump_json()}")
+                await self.ws.send_json(event.model_dump())
+        except (WebSocketDisconnect, RuntimeError) as e:
+            logging.warn(f"{e}")
+            self.open = False
 
 
 room_game_managers: Dict[str, GameManager] = defaultdict(GameManager)
@@ -48,9 +54,8 @@ async def websocket_endpoint(ws: WebSocket, room_id: str):
     ws_adapter = WebSocketPlayerAdapter(ws)
     uuid_adapters[ws_uuid] = ws_adapter
 
-    await ws.send_json({"type": "player.uuid", "payload": {"uuid": ws_uuid}})
-
     try:
+        await ws.send_json({"type": "player.uuid", "payload": {"uuid": ws_uuid}})
         while True:
             try:
                 msg = await ws.receive_json()
@@ -83,15 +88,13 @@ async def websocket_endpoint(ws: WebSocket, room_id: str):
                         ),
                     ).model_dump()
                 )
-    except WebSocketDisconnect:
-        logging.info(f"Websocket {ws_uuid} disconnected")
-        await room_game_managers[room_id].receive_event(
-            PlayerLeave(
-                type="player.leave",
-                payload=PlayerLeavePayload(player_id=ws_uuid),
-            ),
-            uuid_adapters[ws_uuid],
-        )
+    except (WebSocketDisconnect, RuntimeError):
+        gm = room_game_managers[room_id]
+        if ws_uuid in gm.players:
+            gm.remove_player(ws_uuid)
+            #await gm._broadcast(
+            #    PlayerLeft(type="player.left", payload=PlayerLeftPayload(player_id=ws_uuid))
+            #)
         del uuid_adapters[ws_uuid]
-        if len(room_game_managers[room_id].players) == 0:
+        if not gm.players:
             del room_game_managers[room_id]

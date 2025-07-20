@@ -46,13 +46,17 @@ class GameManager:
         self,
         mafiosi_count: int = 2,
         night_duration_s=20,
-        day_duration_s=15,
+        day_duration_s=60,
         vote_duration_s=20,
+        lobby_duration_s=30,
+        ended_duation_s=20
     ):
         self.mafiosi_count = mafiosi_count
         self.night_duration_s = night_duration_s
         self.day_duration_s = day_duration_s
         self.vote_duration_s = vote_duration_s
+        self.lobby_duration_s = lobby_duration_s
+        self.ended_duration_s = ended_duation_s
 
         self.game_state = GameState()
         self.players: Dict[str, PlayerAdapter] = dict()
@@ -76,12 +80,15 @@ class GameManager:
             ):
                 await player.receive_event(event)
 
-    def add_player(self, uuid: str, name: str, player: PlayerAdapter):
-        self.players[uuid] = player
-        self.player_names[uuid] = name
+    def _add_default_state_player_to_game_state(self, uuid: str):
         self.game_state.add_player(
             uuid, PlayerGameState(role=Role.INNOCENT, alive=True)
         )
+
+    def add_player(self, uuid: str, name: str, player: PlayerAdapter):
+        self.players[uuid] = player
+        self.player_names[uuid] = name
+        self._add_default_state_player_to_game_state(uuid)
 
     def remove_player(self, uuid: str):
         del self.players[uuid]
@@ -172,10 +179,16 @@ class GameManager:
                 )
             )
 
+    async def _end_game(self):
+        self.next_phase_timestamp = (datetime.now(tz=timezone.utc) + timedelta(seconds=self.ended_duration_s)).timestamp()
+        await self._broadcast(self._construct_revealing_game_state_sync_event())
+        await self._broadcast(PhaseChange(type="phase.change", payload=PhaseChangePayload(phase="ended", ends_at=self.next_phase_timestamp)))
+
     async def _check_game_over(self):
         game_over = self.game_state.check_game_over()
         if game_over:
-            await self._broadcast(self._construct_revealing_game_state_sync_event())
+            await self._end_game()
+
 
     async def _end_night(self):
         vote_winner = self._get_vote_winner()
@@ -247,9 +260,19 @@ class GameManager:
         await self._sync_game_state()
         await self._check_game_over()
 
-    def _assign_roles_randomly(self):
+    async def _restart_game(self):
+        self._reset_votes()
+        self.lobby = True
+        self.next_phase_timestamp = (datetime.now(tz=timezone.utc) + timedelta(seconds=self.lobby_duration_s)).timestamp()
+        self.game_state = GameState()
+        for player_uuid in self.players.keys():
+            self._add_default_state_player_to_game_state(player_uuid)
+        await self._sync_game_state()
+        await self._broadcast(PhaseChange(type="phase.change", payload=PhaseChangePayload(phase="lobby", ends_at=self.next_phase_timestamp)))
+
+    def _assign_roles_randomljy(self):
         uuid_list = list(self.players.keys())
-        if len(uuid_list) <= 4:
+        if len(uuid_list) <= 5:
             # Otherwise the game ends instantly
             self.mafiosi_count = 1
         mafia_uuids = random.sample(uuid_list, k=self.mafiosi_count)
@@ -263,7 +286,7 @@ class GameManager:
         # reset the timer to one minute, ad infinitum
         if self.lobby and len(self.players) < 4:
             self.next_phase_timestamp = (datetime.now(tz=timezone.utc) + timedelta(
-                minutes=0.25, milliseconds=499
+                seconds=self.lobby_duration_s
             )).timestamp()
         elif self.next_phase_timestamp <= datetime.now(tz=timezone.utc).timestamp():
             if self.lobby:
@@ -277,6 +300,8 @@ class GameManager:
                 await self._end_day()
             elif self.game_state.phase == Phase.VOTING:
                 await self._end_voting()
+            elif self.game_state.phase == Phase.ENDED:
+                await self._restart_game()
         await self._sync_game_state()
 
     async def _receive_vote(self, voter: PlayerAdapter, vote: Vote | NightAction):
@@ -320,15 +345,6 @@ class GameManager:
                         PlayerLeft(
                             type="player.left",
                             payload=PlayerLeftPayload(player_id=payload.player_id),
-                        )
-                    )
-                else:
-                    await player.receive_event(
-                        ActionAck(
-                            type="action.ack",
-                            payload=ActionAckPayload(
-                                success=False, message="Cannot do this!"
-                            ),
                         )
                     )
             case NightAction(payload=payload):
