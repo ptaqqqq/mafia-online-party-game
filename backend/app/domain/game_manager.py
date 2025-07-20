@@ -82,7 +82,7 @@ class GameManager:
 
     def _add_default_state_player_to_game_state(self, uuid: str):
         self.game_state.add_player(
-            uuid, PlayerGameState(role=Role.INNOCENT, alive=True)
+            uuid, PlayerGameState(role=Role.INNOCENT, alive=self.lobby)  # Make alive in _end_lobby
         )
 
     def add_player(self, uuid: str, name: str, player: PlayerAdapter):
@@ -189,6 +189,14 @@ class GameManager:
         if game_over:
             await self._end_game()
 
+    async def _end_lobby(self):
+        self.lobby = False
+        for p_uuid in self.game_state.players.keys():
+            self.game_state.players[p_uuid]["alive"] = True
+        self.next_phase_timestamp = (datetime.now(tz=timezone.utc) + timedelta(seconds=self.night_duration_s)).timestamp()
+        self._assign_roles_randomly()
+        self._reset_votes()
+        await self._broadcast(PhaseChange(type="phase.change", payload=PhaseChangePayload(phase="night", ends_at=self.next_phase_timestamp)))
 
     async def _end_night(self):
         vote_winner = self._get_vote_winner()
@@ -290,10 +298,7 @@ class GameManager:
             )).timestamp()
         elif self.next_phase_timestamp <= datetime.now(tz=timezone.utc).timestamp():
             if self.lobby:
-                self.lobby = False
-                self.next_phase_timestamp = (datetime.now(tz=timezone.utc) + timedelta(seconds=self.night_duration_s)).timestamp()
-                self._assign_roles_randomly()
-                self._reset_votes()
+                await self._end_lobby()
             elif self.game_state.phase == Phase.NIGHT:
                 await self._end_night()
             elif self.game_state.phase == Phase.DAY:
