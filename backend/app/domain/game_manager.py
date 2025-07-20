@@ -338,7 +338,7 @@ class GameManager:
                     PlayerJoined(
                         type="player.joined",
                         payload=PlayerJoinedPayload(
-                            player_id=payload.player_id, name=payload.player_id
+                            player_id=payload.player_id, name=payload.name
                         ),
                     )
                 )

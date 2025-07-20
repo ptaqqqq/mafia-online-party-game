@@ -54,12 +54,10 @@
   });
 
   /// User list ///
-  let users = $state(
-    Array.from(
-      { length: 10 },
-      () => "user_" + Math.floor(Math.random() * 10000),
-    ),
-  );
+  /**
+     * @type {string[]}
+     */
+  let users = $state([]);
   /**
     * @type {string[]}
     */
@@ -207,6 +205,19 @@ function showAlert(message, timeout = 3000) {
           console.log('sent hello!');
           break;
 
+        case 'player.joined':
+          userDisplayNames[event.payload.player_id] = event.payload.name;
+          addTextToStream({ id: Date.now(), text: `Player ${event.payload.name} joined the game`});
+          break;
+
+        case 'player.left':
+          addTextToStream({ id: Date.now(), text: `Player ${userDisplayNames[event.payload.player_id] || event.payload.player_id} left the game`});
+          delete userDisplayNames[event.payload.player_id];
+          users = users.filter(u => u !== event.payload.player_id);
+          eliminated = eliminated.filter(u => u !== event.payload.player_id);
+          mafiosi = eliminated.filter(u => u !== event.payload.player_id);
+          break;
+
         case 'game.state':
           console.log('received game state')
           const st = event.payload;
@@ -320,7 +331,7 @@ function showAlert(message, timeout = 3000) {
 
 <main>
   <div class="main-area">
-    <div class="lobby-info overlay">r
+    <div class="lobby-info overlay">
       <LobbyInfo lobbySettings={gameInfo} />
     </div>
     <div class="text-stream overlay" bind:this={textStream}>
