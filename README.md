@@ -1,11 +1,33 @@
 # Mafia Online
 
-Online Mafia (also known as Werewolf) party game!
+Online Mafia (also known as Werewolf) party game.
 
-## Contribute
+Gather at least four people, join the same lobby with a code, and have fun together, no matter where you are!
 
-Use __[GitHub flow](https://docs.github.com/en/get-started/using-github/github-flow)__.
+![Screenshot of the game during night phase](https://hc-cdn.hel1.your-objectstorage.com/s/v3/ff3ecce10415368d3d0ed01a4118a6ac1a9843e1_image.png)
 
-Relevant docs:
+## Usage
 
-- [UX Concept](docs/ux-concept.md)
+### Play online
+
+<https://mafia.ptaqqqq.hackclub.app>
+
+### Self-host
+
+Put this in `.env`:
+
+```.env
+BACKEND_PORT=8000
+FRONTEND_PORT=5173
+VITE_WEBSOCKET_URL=ws://localhost:8000
+```
+
+Run `docker compose up --build`.
+
+<div align="center">
+  <a href="https://shipwrecked.hackclub.com/?t=ghrm" target="_blank">
+    <img src="https://hc-cdn.hel1.your-objectstorage.com/s/v3/739361f1d440b17fc9e2f74e49fc185d86cbec14_badge.png" 
+         alt="This project is part of Shipwrecked, the world's first hackathon on an island!" 
+         style="width: 35%;">
+  </a>
+</div>
