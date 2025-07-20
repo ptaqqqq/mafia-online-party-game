@@ -270,7 +270,7 @@ class GameManager:
         await self._sync_game_state()
         await self._broadcast(PhaseChange(type="phase.change", payload=PhaseChangePayload(phase="lobby", ends_at=self.next_phase_timestamp)))
 
-    def _assign_roles_randomljy(self):
+    def _assign_roles_randomly(self):
         uuid_list = list(self.players.keys())
         if len(uuid_list) <= 5:
             # Otherwise the game ends instantly
