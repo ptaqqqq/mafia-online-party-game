@@ -37,7 +37,7 @@ class WebSocketPlayerAdapter(PlayerAdapter):
                 logging.info(f"Sending event {event.model_dump_json()}")
                 await self.ws.send_json(event.model_dump())
         except (WebSocketDisconnect, RuntimeError) as e:
-            logging.warn(f"{e}")
+            logging.warning(f"{e}")
             self.open = False
 
 
