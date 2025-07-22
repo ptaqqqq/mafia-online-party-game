@@ -12,6 +12,7 @@ class Phase(Enum):
 class Role(Enum):
     INNOCENT = "innocent"
     MAFIA = "mafia"
+    MEDIC = "medic"
 
 
 class GameWinner(Enum):
@@ -61,13 +62,13 @@ class GameState:
         else:
             self.phase = Phase.NIGHT
 
-    def end_night(self, targeted_player_id: Optional[str] = None):
+    def end_night(self, targeted_player_id: Optional[str] = None, healed_player_id: Optional[str] = None):
         if self.phase != Phase.NIGHT:
             raise InvalidPhaseError
 
-        if targeted_player_id is not None:
+        if targeted_player_id is not None and targeted_player_id != healed_player_id:
             if self.players.get(targeted_player_id, None) is None:
-                raise ValueError("Player {suspected_player} not found!")
+                raise ValueError(f"Player {targeted_player_id} not found!")
             self.players[targeted_player_id]["alive"] = False
 
         if self.check_game_over():
@@ -82,7 +83,7 @@ class GameState:
         innocents = sum(
             1
             for p in self.players.values()
-            if p["role"] == Role.INNOCENT and p["alive"]
+            if p["role"] in [Role.INNOCENT, Role.MEDIC] and p["alive"]
         )
 
         if mafia == 0:

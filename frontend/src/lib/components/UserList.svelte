@@ -1,9 +1,10 @@
 <script>
-  let { 
+  let {
     users: user_ids = $bindable([]),
     userDisplayNames = $bindable({}),
     eliminated = $bindable([]),
-    mafiosi = $bindable([])
+    mafiosi = $bindable([]),
+    medics = $bindable([])
   } = $props()
 
   user_ids.filter(u => !(u in userDisplayNames)).forEach(u => userDisplayNames[u] = u);
@@ -12,7 +13,7 @@
 {#each user_ids as u}
   <div class="user-item">
     <img src="https://avatar.iran.liara.run/public?username={u}" alt="{userDisplayNames[u]}'s avatar" />
-    <span class={[eliminated.includes(u) && 'eliminated', mafiosi.includes(u) && 'mafioso']}>{userDisplayNames[u]}</span>
+    <span class={[eliminated.includes(u) && 'eliminated', mafiosi.includes(u) && 'mafioso', medics.includes(u) && 'medic']}>{userDisplayNames[u]}</span>
   </div>
 {/each}
 
@@ -35,5 +36,9 @@
 
   .mafioso {
     color: red;
+  }
+
+  .medic {
+    color: green;
   }
 </style>

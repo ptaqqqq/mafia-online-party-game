@@ -11,9 +11,13 @@ services:
     build:
       context: frontend
       dockerfile: Dockerfile
-      target: runtime
+      target: development
     container_name: mafia-online-party-game-web
     ports:
-      - "${FRONTEND_PORT}:3000"
+      - "${FRONTEND_PORT}:5173"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
     environment:
-      NODE_ENV: production
+      NODE_ENV: development
+      VITE_WEBSOCKET_URL: ${VITE_WEBSOCKET_URL}

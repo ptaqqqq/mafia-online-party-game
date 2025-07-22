@@ -66,6 +66,10 @@
     * @type {string[]}
     */
   let mafiosi = $state([]);
+  /**
+    * @type {string[]}
+    */
+  let medics = $state([]);
 
 
 
@@ -116,10 +120,14 @@
 
 
   /// Voting ///
-  let showVoting = $derived((currentPhase === "voting" || (currentPhase === "night" && mafiosi.includes(userUuid))) && !(eliminated.includes(userUuid)));
+  let showVoting = $derived((currentPhase === "voting" || (currentPhase === "night" && (mafiosi.includes(userUuid) || medics.includes(userUuid)))) && !(eliminated.includes(userUuid)));
   let votingPrompt = $derived.by(() => {
     if (currentPhase === "voting") {
       return "Who is the most suspicious?";
+    } else if (currentPhase === "night" && mafiosi.includes(userUuid)) {
+      return "Choose your target to eliminate...";
+    } else if (currentPhase === "night" && medics.includes(userUuid)) {
+      return "Choose someone to heal and protect...";
     } else {
       return "Choose your target wisely...";
     }
@@ -134,13 +142,22 @@
   const votingSelectHandler = (/** @type {any} */ option) => {
     if (phaseMillisecondsLeft > 0) {
       console.debug("Selected vote for", option);
+      console.debug("User role check - mafia:", mafiosi.includes(userUuid), "medic:", medics.includes(userUuid));
       votingSelectedByPlayer = option;
       if (currentPhase === 'voting') {
         const payload = { actor_id: userUuid, target_id: option };
+        console.debug("Sending voting action:", payload);
         ws.send(JSON.stringify({ type: 'action.vote', payload }));
-      } else if (currentPhase === 'night') {
+      } else if (currentPhase === 'night' && mafiosi.includes(userUuid)) {
         const payload = { actor_id: userUuid, action: 'kill', target_id: option };
+        console.debug("Sending MAFIA kill action:", payload);
         ws.send(JSON.stringify({ type: 'action.night', payload }));
+      } else if (currentPhase === 'night' && medics.includes(userUuid)) {
+        const payload = { actor_id: userUuid, action: 'heal', target_id: option };
+        console.debug("Sending MEDIC heal action:", payload);
+        ws.send(JSON.stringify({ type: 'action.night', payload }));
+      } else {
+        console.debug("No action sent - phase:", currentPhase, "mafia:", mafiosi.includes(userUuid), "medic:", medics.includes(userUuid));
       }
     }
   };``
@@ -215,7 +232,8 @@ function showAlert(message, timeout = 3000) {
           delete userDisplayNames[event.payload.player_id];
           users = users.filter(u => u !== event.payload.player_id);
           eliminated = eliminated.filter(u => u !== event.payload.player_id);
-          mafiosi = eliminated.filter(u => u !== event.payload.player_id);
+          mafiosi = mafiosi.filter(u => u !== event.payload.player_id);
+          medics = medics.filter(u => u !== event.payload.player_id);
           break;
 
         case 'game.state':
@@ -234,6 +252,8 @@ function showAlert(message, timeout = 3000) {
           users = st_users.map(p => p.player_id);
           // @ts-ignore
           mafiosi = st_users.filter(p => p.role_revealed === 'mafia').map(p => p.player_id);
+          // @ts-ignore
+          medics = st_users.filter(p => p.role_revealed === 'medic').map(p => p.player_id);
           // @ts-ignore
           eliminated = st_users.filter(p => p.alive === false).map(p => p.player_id);
           userDisplayNames = {};
@@ -380,7 +400,7 @@ function showAlert(message, timeout = 3000) {
     </div>
 
     <div class="user-list overlay">
-      <UserList {users} {mafiosi} {eliminated} {userDisplayNames}/>
+      <UserList {users} {mafiosi} {medics} {eliminated} {userDisplayNames}/>
     </div>
   </div>
 </main>

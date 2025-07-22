@@ -45,6 +45,7 @@ class GameManager:
     def __init__(
         self,
         mafiosi_count: int = 2,
+        medic_count: int = 1,
         night_duration_s=20,
         day_duration_s=60,
         vote_duration_s=20,
@@ -52,6 +53,7 @@ class GameManager:
         ended_duation_s=20
     ):
         self.mafiosi_count = mafiosi_count
+        self.medic_count = medic_count
         self.night_duration_s = night_duration_s
         self.day_duration_s = day_duration_s
         self.vote_duration_s = vote_duration_s
@@ -66,6 +68,7 @@ class GameManager:
             minutes=1, milliseconds=499
         )).timestamp()
         self.cast_votes: Dict[str, str] = defaultdict(str)
+        self.heal_votes: Dict[str, str] = defaultdict(str)
         self.event_log: List[GameLogEntry] = []
 
     async def _broadcast(
@@ -97,6 +100,12 @@ class GameManager:
 
     def _reset_votes(self):
         self.cast_votes = defaultdict(str)
+        self.heal_votes = defaultdict(str)
+
+    def _get_heal_winner(self):
+        if len(self.heal_votes) == 0:
+            return None
+        return list(self.heal_votes.values())[0] if self.heal_votes else None
 
     def _get_vote_winner(self):
         if len(self.cast_votes) == 0:
@@ -114,6 +123,8 @@ class GameManager:
     def _confidentially_reveal_role(self, role: Role, viewer_role: Role):
         if viewer_role == role:
             return role.value
+        elif role == Role.MEDIC and viewer_role != Role.MEDIC:
+            return "innocent"
         else:
             return "innocent"
 
@@ -123,7 +134,16 @@ class GameManager:
         winner = self.game_state.winner
         if winner is not None:
             winner = winner.value
-        # Warning - this will reveal all roles!
+
+        visible_votes = {}
+        if viewer_role == Role.MAFIA:
+            visible_votes = self.cast_votes
+        elif viewer_role == Role.MEDIC:
+            visible_votes = self.heal_votes
+        else:
+            if self.game_state.phase != Phase.NIGHT:
+                visible_votes = self.cast_votes
+
         return GameStateSync(
             type="game.state",
             payload=GameStateSyncPayload(
@@ -140,7 +160,7 @@ class GameManager:
                 ],
                 phase=("lobby" if self.lobby else self.game_state.phase.value),
                 phase_ends_at=self.next_phase_timestamp,
-                votes=self.cast_votes,
+                votes=visible_votes,
                 winner=winner,
                 logs=self.event_log,
             ),
@@ -200,15 +220,17 @@ class GameManager:
 
     async def _end_night(self):
         vote_winner = self._get_vote_winner()
-        self.game_state.end_night(vote_winner)
+        heal_winner = self._get_heal_winner()
+        self.game_state.end_night(vote_winner, heal_winner)
 
-        if vote_winner:
+        if vote_winner and vote_winner != heal_winner:
             await self._broadcast(
                 MorningNews(
                     type="action.morning_news",
                     payload=MorningNewsPayload(target_id=vote_winner),
                 )
             )
+
         self._reset_votes()
 
         self.next_phase_timestamp = (datetime.now(tz=timezone.utc) + timedelta(
@@ -283,10 +305,15 @@ class GameManager:
         if len(uuid_list) <= 5:
             # Otherwise the game ends instantly
             self.mafiosi_count = 1
+            self.medic_count = 1
         mafia_uuids = random.sample(uuid_list, k=self.mafiosi_count)
+        remaining_uuids = [uuid for uuid in uuid_list if uuid not in mafia_uuids]
+        medic_uuids = random.sample(remaining_uuids, k=min(self.medic_count, len(remaining_uuids)))
         for uuid in uuid_list:
             if uuid in mafia_uuids:
                 self.game_state.players[uuid]["role"] = Role.MAFIA
+            elif uuid in medic_uuids:
+                self.game_state.players[uuid]["role"] = Role.MEDIC
             else:
                 self.game_state.players[uuid]["role"] = Role.INNOCENT
 
@@ -330,6 +357,29 @@ class GameManager:
             )
         )
 
+    async def _receive_heal(self, healer: PlayerAdapter, heal_action: NightAction):
+        payload = heal_action.payload
+        if not self.game_state.players[payload.target_id]["alive"]:
+            await healer.receive_event(
+                ActionAck(
+                    type="action.ack",
+                    payload=ActionAckPayload(
+                        success=False, message="Target is already dead!"
+                    ),
+                )
+            )
+            return
+
+        self.heal_votes[payload.actor_id] = payload.target_id
+        await healer.receive_event(
+            ActionAck(
+                type="action.ack",
+                payload=ActionAckPayload(
+                    success=True, message="Successfully cast heal"
+                ),
+            )
+        )
+
     async def receive_event(self, event: GameEvent, player: PlayerAdapter):
         match event:
             case PlayerJoin(type="player.join", payload=payload):
@@ -353,12 +403,23 @@ class GameManager:
                         )
                     )
             case NightAction(payload=payload):
+                player_role = self.game_state.players[payload.actor_id]["role"]
+                print(f"DEBUG: NightAction from {payload.actor_id}, role: {player_role}, action: {payload.action}, target: {payload.target_id}")
+
                 if (
                     self.game_state.phase == Phase.NIGHT
-                    and self.game_state.players[payload.actor_id]["role"] == Role.MAFIA
+                    and player_role == Role.MAFIA and payload.action == "kill"
                 ):
+                    print(f"DEBUG: Processing MAFIA kill action")
                     await self._receive_vote(player, event)
+                elif (
+                    self.game_state.phase == Phase.NIGHT
+                    and player_role == Role.MEDIC and payload.action == "heal"
+                ):
+                    print(f"DEBUG: Processing MEDIC heal action")
+                    await self._receive_heal(player, event)
                 else:
+                    print(f"DEBUG: Rejecting action - phase: {self.game_state.phase}, role: {player_role}, action: {payload.action}")
                     await player.receive_event(
                         ActionAck(
                             type="action.ack",

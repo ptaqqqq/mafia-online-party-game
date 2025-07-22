@@ -55,7 +55,7 @@ class PlayerLeft(GameEvent):
 
 class NightActionPayload(CamelModel):
     actor_id: str = Field(..., description="UUID of the player performing the action")
-    action: Literal["kill"]
+    action: Literal["kill", "heal"]
     target_id: str = Field(..., description="UUID of the targeted player")
 
 
