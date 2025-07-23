@@ -18,7 +18,10 @@ from schemas.game import (
     MessageReceived,
     MorningNews,
     MorningNewsPayload,
+    NarratorMessage,
+    NarratorMessagePayload,
     NightAction,
+    OpeningStoryRequest,
     PhaseChange,
     PhaseChangePayload,
     PlayerJoin,
@@ -37,7 +40,7 @@ from schemas.game import (
     ProfilesStart,
     ProfilesStartPayload,
     ProfilesComplete,
-    ProfilesCompletePayload, 
+    ProfilesCompletePayload,
 )
 from app.domain.game_state import GameState, Phase, PlayerGameState, Role
 from app.services.llm_client import DeepSeekClient
@@ -58,11 +61,11 @@ class GameManager:
         self,
         mafiosi_count: int = 2,
         medic_count: int = 1,
-        night_duration_s=20,
-        day_duration_s=60,
-        vote_duration_s=20,
+        night_duration_s=35,
+        day_duration_s=75,
+        vote_duration_s=35,
         lobby_duration_s=30,
-        character_intro_duration_s=30,
+        character_intro_duration_s=10,
         ended_duation_s=20
     ):
         self.mafiosi_count = mafiosi_count
@@ -91,6 +94,7 @@ class GameManager:
         self.cast_votes: Dict[str, str] = defaultdict(str)
         self.heal_votes: Dict[str, str] = defaultdict(str)
         self.event_log: List[GameLogEntry] = []
+        self.opening_story: str = ""
         self.logger = logging.getLogger(__name__)
 
     async def _broadcast(
@@ -98,12 +102,46 @@ class GameManager:
     ):
         excluded_player_ids = excluded_player_ids or []
         included_player_roles = included_player_roles or []
+
+        if included_player_roles:
+            self.logger.info(f"📡 Broadcasting {event.type} to roles: {included_player_roles}")
+
         for uuid, player in self.players.items():
-            if uuid not in excluded_player_ids and (
+            player_role = self.game_state.players[uuid]["role"]
+            should_send = uuid not in excluded_player_ids and (
                 len(included_player_roles) == 0
-                or self.game_state.players[uuid]["role"] in included_player_roles
-            ):
+                or player_role in included_player_roles
+            )
+
+            if included_player_roles:
+                self.logger.info(f"📡 Player {uuid} role={player_role}, should_send={should_send}")
+
+            if should_send:
                 await player.receive_event(event)
+
+    async def _send_narrator_message(self, text: str):
+        """Send narrator message to all players"""
+        import time
+        narrator_event = NarratorMessage(
+            type="narrator.message",
+            payload=NarratorMessagePayload(
+                text=text,
+                timestamp=time.time()
+            )
+        )
+        self.logger.info(f"🎭 Sending narrator message: {text}")
+        await self._broadcast(narrator_event)
+
+    async def send_opening_story(self):
+        if not self.opening_story:
+            try:
+                player_names = list(self.player_names.values())
+                self.opening_story = self.narrator_service.generate_story_opening(player_names)
+            except Exception:
+                self.opening_story = "Night falls over the quiet town. The residents lock their doors, knowing that danger lurks in the shadows."
+
+        await self._send_narrator_message(self.opening_story)
+        self.opening_story = ""
     
     async def _generate_character_profiles(self):
         if self.profiles_generated:
@@ -117,18 +155,47 @@ class GameManager:
             })
 
         try:
-            self.logger.info(f"Generating character profiles for {len(player_data)} players...")
             profiles = self.character_generator.generate_profiles_for_players(player_data)
-            
+
             for profile in profiles:
                 self.character_profiles[profile.player_id] = profile
-            
+
             self.narrator_service.set_character_profiles(profiles)
             self.profiles_generated = True
-            self.logger.info(f"Successfully generated {len(profiles)} character profiles")
 
-        except Exception as e:
-            self.logger.error(f"Failed to generate character profiles: {str(e)}")
+        except Exception:
+            await self._generate_fallback_profiles(player_data)
+
+    async def _generate_fallback_profiles(self, player_data):
+        fallback_professions = [
+            ("👨‍🍳", "Chef", "The town's beloved chef who knows everyone's secrets through dinner conversations."),
+            ("👮", "Police Officer", "A sharp-eyed detective who notices everything but trusts no one."),
+            ("⚕️", "Doctor", "The town's healer who has seen too much death and darkness."),
+            ("📚", "Librarian", "A quiet keeper of knowledge who observes from the shadows."),
+            ("🔧", "Mechanic", "A practical person who fixes things but can't fix the town's problems."),
+            ("🌾", "Farmer", "A hardworking soul connected to the land and its ancient secrets."),
+            ("🏪", "Shop Owner", "A merchant who knows the value of everything and the cost of silence."),
+            ("📮", "Postman", "A messenger who carries more than letters through the town's streets.")
+        ]
+
+        profiles = []
+        for i, (player_id, name) in enumerate(player_data):
+            emoji, profession, description = fallback_professions[i % len(fallback_professions)]
+
+            profile = CharacterProfile(
+                player_id=player_id,
+                name=name,
+                profession=profession,
+                description=f"{name} is {description}",
+                emoji=emoji,
+                current_index=i + 1,
+                total_count=len(player_data)
+            )
+            profiles.append(profile)
+            self.character_profiles[player_id] = profile
+
+        self.narrator_service.set_character_profiles(profiles)
+        self.profiles_generated = True
 
     async def _show_character_profiles(self):
         self.logger.info("🎭 _show_character_profiles() called")
@@ -146,9 +213,7 @@ class GameManager:
             )
         )
 
-        self.logger.info(f"Showing {len(self.character_profiles)} character profiles...")
-
-        for index, (player_id, profiles) in enumerate(self.character_profiles.items(), start=1):
+        for index, (_, profiles) in enumerate(self.character_profiles.items(), start=1):
             if index > 1:
                 await asyncio.sleep(1)
 
@@ -161,7 +226,6 @@ class GameManager:
                 current_index=index,
                 total_count=len(self.character_profiles)
             )
-            self.logger.info(f"Broadcasting profile {index}/{len(self.character_profiles)}: current_index={payload.current_index}, total_count={payload.total_count}")
             await self._broadcast(
                 CharacterProfile(
                     type="character.profile",
@@ -170,7 +234,7 @@ class GameManager:
             )
             
             self.logger.info(f"Showed profile {index}/{len(self.character_profiles)}: {profiles.name} {profiles.profession}")
-            await asyncio.sleep(4)
+            await asyncio.sleep(6)  # Increased from 4s to 6s for better readability
 
         await self._broadcast(
             ProfilesComplete(
@@ -180,6 +244,8 @@ class GameManager:
             )
         self.showing_profiles = False
         self.logger.info("Finished showing character profiles")
+
+        # Opening story will be sent from frontend after profiles complete
 
     def _add_default_state_player_to_game_state(self, uuid: str):
         self.game_state.add_player(
@@ -237,7 +303,10 @@ class GameManager:
         if viewer_role == Role.MAFIA:
             visible_votes = self.cast_votes
         elif viewer_role == Role.MEDIC:
-            visible_votes = self.heal_votes
+            if self.game_state.phase == Phase.NIGHT:
+                visible_votes = self.heal_votes
+            else:
+                visible_votes = self.cast_votes
         else:
             if self.game_state.phase != Phase.NIGHT:
                 visible_votes = self.cast_votes
@@ -321,7 +390,12 @@ class GameManager:
         self._assign_roles_randomly()
         self._reset_votes()
 
-        self.next_phase_timestamp = (datetime.now(tz=timezone.utc) + timedelta(seconds=self.character_intro_duration_s)).timestamp()
+        num_players = len(self.players)
+        profile_time = num_players * 6
+        narrator_time = 15
+        total_intro_time = self.character_intro_duration_s + profile_time + narrator_time
+
+        self.next_phase_timestamp = (datetime.now(tz=timezone.utc) + timedelta(seconds=total_intro_time)).timestamp()
         await self._sync_game_state()
         await self._broadcast(PhaseChange(type="phase.change", payload=PhaseChangePayload(phase="character_intro", ends_at=self.next_phase_timestamp)))
 
@@ -333,16 +407,7 @@ class GameManager:
             self.logger.info("🚫 Skipping profile presentation - already shown this game")
 
     async def _end_character_intro(self):
-        self.logger.info("🎭 _end_character_intro() called - Character introduction complete")
         self.showing_profiles = False
-
-        try:
-            player_names = list(self.player_names.values())
-            opening_story = self.narrator_service.generate_story_opening(player_names)
-            # TODO: Send opening_story as an event to players!
-        except Exception as e:
-            self.logger.error(f"Failed to generate opening story: {e}")
-
         self.game_state.end_character_intro()
         self.next_phase_timestamp = (datetime.now(tz=timezone.utc) + timedelta(seconds=self.night_duration_s)).timestamp()
         await self._sync_game_state()
@@ -354,14 +419,46 @@ class GameManager:
         self.game_state.end_night(vote_winner, heal_winner)
 
         if vote_winner and vote_winner != heal_winner:
+            # Someone was killed by mafia
+            try:
+                victim_name = self.player_names.get(vote_winner, vote_winner)
+                death_narrative = self.narrator_service.generate_death_narrative(
+                    victim_name, "mafia", {"day_count": self.narrator_service.game_context.day_count}
+                )
+                await self._send_narrator_message(death_narrative)
+            except Exception as e:
+                self.logger.error(f"Failed to generate death narrative: {e}")
+                victim_name = self.player_names.get(vote_winner, vote_winner)
+                await self._send_narrator_message(f"{victim_name} was found dead this morning. The town mourns another loss to the shadows.")
+
             await self._broadcast(
                 MorningNews(
                     type="action.morning_news",
                     payload=MorningNewsPayload(target_id=vote_winner),
                 )
             )
+        elif vote_winner and vote_winner == heal_winner:
+            # Someone was saved by medic!
+            try:
+                saved_name = self.player_names.get(vote_winner, vote_winner)
+                save_narrative = self.narrator_service.generate_save_narrative(
+                    saved_name, {"day_count": self.narrator_service.game_context.day_count}
+                )
+                await self._send_narrator_message(save_narrative)
+            except Exception as e:
+                self.logger.error(f"Failed to generate save narrative: {e}")
+                saved_name = self.player_names.get(vote_winner, vote_winner)
+                await self._send_narrator_message(f"The night passed quietly. {saved_name} was protected by unseen forces.")
+        else:
+            pass
 
         self._reset_votes()
+
+        try:
+            day_narrative = self.narrator_service.generate_phase_transition("night", "day")
+            await self._send_narrator_message(day_narrative)
+        except Exception:
+            await self._send_narrator_message("Dawn breaks over the troubled town as the residents emerge from their homes...")
 
         self.next_phase_timestamp = (datetime.now(tz=timezone.utc) + timedelta(
             seconds=self.day_duration_s
@@ -380,6 +477,13 @@ class GameManager:
     async def _end_day(self):
         self.game_state.end_day()
         self._reset_votes()
+
+        try:
+            voting_narrative = self.narrator_service.generate_phase_transition("day", "voting")
+            await self._send_narrator_message(voting_narrative)
+        except Exception:
+            await self._send_narrator_message("The sun reaches its zenith as heated discussions fill the town square. The time for words has passed - now comes the moment of terrible decision.")
+
         self.next_phase_timestamp = (datetime.now(tz=timezone.utc) + timedelta(
             seconds=self.vote_duration_s
         )).timestamp()
@@ -398,6 +502,17 @@ class GameManager:
         self.game_state.end_voting(vote_winner)
 
         if vote_winner:
+            try:
+                voted_player_name = self.player_names.get(vote_winner, vote_winner)
+                vote_results = {"total_votes": len(self.cast_votes), "margin": "decisive"}
+                voting_narrative = self.narrator_service.generate_voting_narrative(
+                    voted_player_name, vote_results
+                )
+                await self._send_narrator_message(voting_narrative)
+            except Exception:
+                voted_player_name = self.player_names.get(vote_winner, vote_winner)
+                await self._send_narrator_message(f"After intense deliberation, the town has decided. {voted_player_name} must leave.")
+
             await self._broadcast(
                 EveningNews(
                     type="action.evening_news",
@@ -405,6 +520,8 @@ class GameManager:
                 )
             )
         self._reset_votes()
+
+
 
         self.next_phase_timestamp = (datetime.now(tz=timezone.utc) + timedelta(
             seconds=self.night_duration_s
@@ -428,7 +545,7 @@ class GameManager:
         self.profiles_generated = False
         self.showing_profiles = False
         self.profiles_shown_this_game = False
-        self.logger.info(f"🔍 After restart: lobby={self.lobby}, profiles_generated={self.profiles_generated}, showing_profiles={self.showing_profiles}, profiles_shown_this_game={self.profiles_shown_this_game}")
+
         self.next_phase_timestamp = (datetime.now(tz=timezone.utc) + timedelta(seconds=self.lobby_duration_s)).timestamp()
         self.game_state = GameState()
         for player_uuid in self.players.keys():
@@ -474,6 +591,11 @@ class GameManager:
     async def _receive_vote(self, voter: PlayerAdapter, vote: Vote | NightAction):
         payload = vote.payload
         self.cast_votes[payload.actor_id] = payload.target_id
+        if self.game_state.phase == Phase.NIGHT:
+            included_roles = [Role.MAFIA]
+        else:
+            included_roles = []
+
         await self._broadcast(
             VoteCast(
                 type="action.vote_cast",
@@ -481,7 +603,7 @@ class GameManager:
                     actor_id=payload.actor_id, target_id=payload.target_id
                 ),
             ),
-            included_player_roles=[Role.MAFIA],
+            included_player_roles=included_roles,
         )
         await voter.receive_event(
             ActionAck(
@@ -506,6 +628,18 @@ class GameManager:
             return
 
         self.heal_votes[payload.actor_id] = payload.target_id
+
+        vote_cast_event = VoteCast(
+            type="action.vote_cast",
+            payload=VoteCastPayload(
+                actor_id=payload.actor_id, target_id=payload.target_id
+            ),
+        )
+        await self._broadcast(
+            vote_cast_event,
+            included_player_roles=[Role.MEDIC],
+        )
+
         await healer.receive_event(
             ActionAck(
                 type="action.ack",
@@ -528,6 +662,10 @@ class GameManager:
                     )
                 )
                 await self._sync_game_state()
+
+                if self.lobby and len(self.players) >= 4 and not self.profiles_generated:
+                    import asyncio
+                    asyncio.create_task(self._generate_character_profiles())
             case PlayerLeave(payload=payload):
                 if payload.player_id in self.players:
                     self.remove_player(payload.player_id)
@@ -545,16 +683,13 @@ class GameManager:
                     self.game_state.phase == Phase.NIGHT
                     and player_role == Role.MAFIA and payload.action == "kill"
                 ):
-                    print(f"DEBUG: Processing MAFIA kill action")
                     await self._receive_vote(player, event)
                 elif (
                     self.game_state.phase == Phase.NIGHT
                     and player_role == Role.MEDIC and payload.action == "heal"
                 ):
-                    print(f"DEBUG: Processing MEDIC heal action")
                     await self._receive_heal(player, event)
                 else:
-                    print(f"DEBUG: Rejecting action - phase: {self.game_state.phase}, role: {player_role}, action: {payload.action}")
                     await player.receive_event(
                         ActionAck(
                             type="action.ack",
@@ -593,6 +728,8 @@ class GameManager:
                 await player.receive_event(
                     self._construct_confidentially_revealing_game_state_sync_event(self.game_state.players[player_id]["role"]),
                 )
+            case OpeningStoryRequest(type="opening.story_request"):
+                await self.send_opening_story()
             case _:
                 await player.receive_event(
                     ActionAck(
