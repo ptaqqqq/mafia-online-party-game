@@ -3,6 +3,7 @@ from typing import Dict, Optional, TypedDict
 
 
 class Phase(Enum):
+    CHARACTER_INTRO = "character_intro"
     DAY = "day"
     NIGHT = "night"
     VOTING = "voting"
@@ -32,7 +33,7 @@ class InvalidPhaseError(Exception):
 
 class GameState:
     def __init__(self):
-        self.phase: Phase = Phase.NIGHT
+        self.phase: Phase = Phase.CHARACTER_INTRO
         self.players: Dict[str, PlayerGameState] = {}
         self.winner: Optional[GameWinner] = None
 
@@ -41,6 +42,12 @@ class GameState:
 
     def remove_player(self, uuid: str):
         del self.players[uuid]
+
+    def end_character_intro(self):
+        if self.phase != Phase.CHARACTER_INTRO:
+            raise InvalidPhaseError
+
+        self.phase = Phase.NIGHT
 
     def end_day(self):
         if self.phase != Phase.DAY:

@@ -63,7 +63,7 @@ class CharacterGenerator:
 
             logger.info(f"Generating profile {i+1}/{player_count}: {name} as {profession}")
 
-            profile = self.generate_single_profile(player, name, profession)
+            profile = self.generate_single_profile(player_id, name, profession)
             profiles.append(profile)
 
             if i < player_count - 1:

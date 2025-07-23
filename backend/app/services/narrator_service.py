@@ -52,6 +52,7 @@ class NarratorService:
             profiles: List of character profiles
         """
         for profile in profiles:
+            logger.info(f"Setting profile: {type(profile)} - name: {type(profile.name)} '{profile.name}'")
             self.game_context.character_profiles[profile.name] = profile
         
         logger.info(f"Set {len(profiles)} character profiles for narrative context")

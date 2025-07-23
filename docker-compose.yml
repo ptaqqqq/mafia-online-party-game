@@ -6,6 +6,10 @@ services:
     container_name: mafia-online-party-game-fastapi
     ports:
       - '${BACKEND_PORT}:8000'
+    volumes:
+      - ./backend:/build
+    environment:
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
     restart: "no"
   web:
     build:

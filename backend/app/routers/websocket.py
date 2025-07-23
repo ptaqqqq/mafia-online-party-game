@@ -34,8 +34,9 @@ class WebSocketPlayerAdapter(PlayerAdapter):
     async def receive_event(self, event: GameEvent):
         try:
             if self.open:
-                logging.info(f"Sending event {event.model_dump_json()}")
-                await self.ws.send_json(event.model_dump())
+                json_data = event.model_dump_json()
+                logging.info(f"Sending event {json_data}")
+                await self.ws.send_text(json_data)
         except (WebSocketDisconnect, RuntimeError) as e:
             logging.warning(f"{e}")
             self.open = False

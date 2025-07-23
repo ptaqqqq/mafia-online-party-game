@@ -5,6 +5,7 @@
   import LobbyInfo from "$lib/components/LobbyInfo.svelte";
   import UserList from "$lib/components/UserList.svelte";
   import { page } from "$app/state";
+  import CharacterProfileCard from '$lib/components/CharacterProfileCard.svelte';
 
 
   let now = $state(Date.now() / 1000.0);  // in seconds to match Python code
@@ -42,6 +43,11 @@
   let lastPhase = $state(Date.now() / 1000.0);
   let phaseEnd = $state(Date.now() / 1000.0);
   let winner = $state('n/a')
+  let showingProfiles = $state(false);
+  let currentProfile = $state(null);
+  let profileIndex = $state(0);
+  let totalProfiles = $state(0);
+  let allProfiles = $state([]);
 
   let phaseMillisecondsLeft = $derived((phaseEnd - now) * 1000);
   let gameInfo = $derived({
@@ -160,7 +166,7 @@
         console.debug("No action sent - phase:", currentPhase, "mafia:", mafiosi.includes(userUuid), "medic:", medics.includes(userUuid));
       }
     }
-  };``
+  };
 
 
     /**
@@ -225,6 +231,53 @@ function showAlert(message, timeout = 3000) {
         case 'player.joined':
           userDisplayNames[event.payload.player_id] = event.payload.name;
           addTextToStream({ id: Date.now(), text: `Player ${event.payload.name} joined the game`});
+          break;
+
+        case 'character.profiles_start':
+          console.log('🎭 Starting character profiles presentation');
+          if (currentPhase === 'character_intro') {
+            showingProfiles = true;
+            totalProfiles = event.payload.total_count;
+            profileIndex = 0;
+            allProfiles = [];
+            addTextToStream({
+              id: Date.now(),
+              text: `🎭 Meet the townspeople... (${totalProfiles} characters)`
+            });
+          }
+          break;
+
+        case 'character.profile':
+          console.log('👤 Showing character profile:', event.payload);
+          if (currentPhase === 'character_intro') {
+            currentProfile = {
+              player_id: event.payload.player_id,
+              name: event.payload.name,
+              profession: event.payload.profession,
+              description: event.payload.description,
+              emoji: event.payload.emoji
+            };
+            profileIndex = event.payload.current_index;
+            totalProfiles = event.payload.total_count;
+            allProfiles.push(currentProfile);
+
+            showingProfiles = true;
+
+            console.log(`📋 Profile ${profileIndex}/${totalProfiles}: ${currentProfile.name} (${currentProfile.profession})`);
+          }
+          break;
+
+        case 'character.profiles_complete':
+          console.log('✅ Character profiles presentation completed');
+          setTimeout(() => {
+            showingProfiles = false;
+            currentProfile = null;
+          }, 1000);
+          
+          addTextToStream({ 
+            id: Date.now(), 
+            text: `✅ All residents have been introduced. The game begins...` 
+          });
           break;
 
         case 'player.left':
@@ -308,6 +361,8 @@ function showAlert(message, timeout = 3000) {
             addTextToStream({ id: Date.now(), text: "The game ended. Winner: " + winner + "!" });
           } else if (currentPhase === 'lobby') {
             addTextToStream({ id: Date.now(), text: "Game will start automatically once at least four players join." });
+          } else if (currentPhase === 'character_intro') {
+            addTextToStream({ id: Date.now(), text: "🎭 Meet the townspeople..." });
           } else {
             addTextToStream({ id: Date.now(), text: "A new " + currentPhase + " began..." });
           }
@@ -323,7 +378,7 @@ function showAlert(message, timeout = 3000) {
 
   onMount(connect)
   onMount(() => setInterval(() => {
-    ws.send(JSON.stringify({ type: 'game.sync_request', playerId: userUuid }));
+    ws.send(JSON.stringify({ type: 'game.sync_request', player_id: userUuid }));
   }, 1000))
 
   /**
@@ -404,6 +459,13 @@ function showAlert(message, timeout = 3000) {
     </div>
   </div>
 </main>
+
+<CharacterProfileCard
+  profile={currentProfile}
+  visible={showingProfiles}
+  currentIndex={profileIndex}
+  totalCount={totalProfiles}
+/>
 
 <style>
   :global(body) {
