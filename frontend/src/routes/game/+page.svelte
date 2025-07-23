@@ -768,7 +768,7 @@ function showAlert(message, timeout = 3000) {
         </div>
       </div>
     </div>
-  </div>
+  </div> 
 {/if}
 
 <style>
