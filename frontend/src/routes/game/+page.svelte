@@ -20,13 +20,17 @@
    * @param {number} ms
    */
   function formatDuration(ms) {
+    if (ms <= 1000) {
+      return "Waiting...";
+    }
+
     const totalSeconds = Math.floor(ms / 1000);
     const seconds = totalSeconds % 60;
     const totalMinutes = Math.floor(totalSeconds / 60);
     const minutes = totalMinutes % 60;
     const hours = Math.floor(totalMinutes / 60);
 
-    // pad to 2 digits:
+
     const s = String(seconds).padStart(2, "0");
     const m = String(minutes).padStart(2, "0");
     const h = String(hours).padStart(2, "0");
@@ -47,9 +51,19 @@
   let currentProfile = $state(null);
   let profileIndex = $state(0);
   let totalProfiles = $state(0);
-  let allProfiles = $state([]);
 
-  let phaseMillisecondsLeft = $derived((phaseEnd - now) * 1000);
+  // Narrator block state
+  let narratorVisible = $state(false);
+  let narratorText = $state("");
+  let narratorDisplayText = $state("");
+  let narratorAnimating = $state(false);
+  let allProfiles = $state([]);
+  let profileQueue = $state([]);
+  let isDisplayingProfiles = $state(false);
+  let profileTimeout = null;
+  let loadingProfiles = $state(false);
+
+  let phaseMillisecondsLeft = $derived(Math.max(0, (phaseEnd - now) * 1000));
   let gameInfo = $derived({
     lobbyCode: lobbyCode,
     nickname: nickname,
@@ -115,7 +129,7 @@
      * @type {{ id: number; user: string; text: string; }[]}
      */
   let messages = $state([]);
-  let showChatModal = $derived((currentPhase === "day") && !(eliminated.includes(userUuid)) && (now - lastPhase > 10.0));
+  let showChatModal = $derived((currentPhase === "day") && !(eliminated.includes(userUuid)) && (now - lastPhase > 10.0) && !narratorAnimating);
 
   let chatInstance = $state();
 
@@ -126,7 +140,7 @@
 
 
   /// Voting ///
-  let showVoting = $derived((currentPhase === "voting" || (currentPhase === "night" && (mafiosi.includes(userUuid) || medics.includes(userUuid)))) && !(eliminated.includes(userUuid)));
+  let showVoting = $derived((currentPhase === "voting" || (currentPhase === "night" && (mafiosi.includes(userUuid) || medics.includes(userUuid)))) && !(eliminated.includes(userUuid)) && !narratorAnimating);
   let votingPrompt = $derived.by(() => {
     if (currentPhase === "voting") {
       return "Who is the most suspicious?";
@@ -146,10 +160,13 @@
   /** @type {Record<string, number>} */
   let votingSelectedByOthers = $state({});
   const votingSelectHandler = (/** @type {any} */ option) => {
-    if (phaseMillisecondsLeft > 0) {
+    if (phaseMillisecondsLeft > 1000) {
       console.debug("Selected vote for", option);
       console.debug("User role check - mafia:", mafiosi.includes(userUuid), "medic:", medics.includes(userUuid));
+
+      // Set selection immediately for all roles to show instant feedback
       votingSelectedByPlayer = option;
+
       if (currentPhase === 'voting') {
         const payload = { actor_id: userUuid, target_id: option };
         console.debug("Sending voting action:", payload);
@@ -234,49 +251,57 @@ function showAlert(message, timeout = 3000) {
           break;
 
         case 'character.profiles_start':
-          console.log('🎭 Starting character profiles presentation');
-          if (currentPhase === 'character_intro') {
-            showingProfiles = true;
+          if (!isDisplayingProfiles) {
             totalProfiles = event.payload.total_count;
-            profileIndex = 0;
+            profileQueue = [];
             allProfiles = [];
+            loadingProfiles = true;
+
             addTextToStream({
               id: Date.now(),
-              text: `🎭 Meet the townspeople... (${totalProfiles} characters)`
+              text: `🎭 Preparing character introductions...`
             });
           }
           break;
 
         case 'character.profile':
-          console.log('👤 Showing character profile:', event.payload);
-          if (currentPhase === 'character_intro') {
-            currentProfile = {
-              player_id: event.payload.player_id,
-              name: event.payload.name,
-              profession: event.payload.profession,
-              description: event.payload.description,
-              emoji: event.payload.emoji
-            };
-            profileIndex = event.payload.current_index;
-            totalProfiles = event.payload.total_count;
-            allProfiles.push(currentProfile);
+          const profile = {
+            player_id: event.payload.player_id,
+            name: event.payload.name,
+            profession: event.payload.profession,
+            description: event.payload.description,
+            emoji: event.payload.emoji
+          };
 
-            showingProfiles = true;
+          profileQueue.push(profile);
+          allProfiles.push(profile);
 
-            console.log(`📋 Profile ${profileIndex}/${totalProfiles}: ${currentProfile.name} (${currentProfile.profession})`);
+          if (profileTimeout) clearTimeout(profileTimeout);
+
+          if (profileQueue.length === event.payload.total_count) {
+            displayProfilesSequentially();
+          } else {
+            profileTimeout = setTimeout(() => {
+              if (profileQueue.length > 0 && !isDisplayingProfiles) {
+                displayProfilesSequentially();
+              }
+            }, 3000);
           }
           break;
 
         case 'character.profiles_complete':
-          console.log('✅ Character profiles presentation completed');
-          setTimeout(() => {
-            showingProfiles = false;
-            currentProfile = null;
-          }, 1000);
-          
-          addTextToStream({ 
-            id: Date.now(), 
-            text: `✅ All residents have been introduced. The game begins...` 
+          if (profileTimeout) {
+            clearTimeout(profileTimeout);
+            profileTimeout = null;
+          }
+
+          if (!isDisplayingProfiles && profileQueue.length > 0) {
+            displayProfilesSequentially();
+          }
+
+          addTextToStream({
+            id: Date.now(),
+            text: `✅ All residents have been introduced. The game begins...`
           });
           break;
 
@@ -295,6 +320,11 @@ function showAlert(message, timeout = 3000) {
 
           currentPhase = st.phase;
           phaseEnd = st.phase_ends_at;
+
+          if (window.pendingPhaseExtension && phaseEnd) {
+            phaseEnd += window.pendingPhaseExtension;
+            window.pendingPhaseExtension = 0;
+          }
           if (st.winner) {
             winner = st.winner
           }
@@ -314,10 +344,16 @@ function showAlert(message, timeout = 3000) {
           st_users.forEach(p => userDisplayNames[p.player_id] = p.name);
           
           if (st_votes) {
+            console.debug("Received votes in game.state:", st_votes);
             if (st_votes[userUuid]) {
+              console.debug("Setting votingSelectedByPlayer from game.state:", st_votes[userUuid]);
               votingSelectedByPlayer = st_votes[userUuid];
-            } else {
+            } else if (!votingSelectedByPlayer) {
+              // Only clear selection if user hasn't made a choice yet
+              console.debug("No vote found for user in game.state, clearing selection (only if empty)");
               votingSelectedByPlayer = '';
+            } else {
+              console.debug("No vote in game.state but user has local selection, keeping:", votingSelectedByPlayer);
             }
 
             users.forEach(p => votingSelectedByOthers[p] = 0);
@@ -336,18 +372,29 @@ function showAlert(message, timeout = 3000) {
           chatInstance.addMessage({ id: Date.now(), user: userDisplayNames[event.payload.actor_id], text: event.payload.text });
           break;
 
+        case 'narrator.message':
+          showNarratorMessage(event.payload.text);
+          break;
+
         case 'action.morning_news':
+          // Basic message in main chat + alert
           addTextToStream({ id: Date.now(), text: `Player ${userDisplayNames[event.payload.target_id]} has been killed by the mafia.` });
-          chatInstance.addMessage({ id: Date.now(), user: 'The mafia times', text: `Player ${userDisplayNames[event.payload.target_id]} has been killed by the mafia.` });
           showAlert(`Player ${userDisplayNames[event.payload.target_id]} has been killed by the mafia.`);
           break;
         case 'action.evening_news':
+          // Basic message in main chat
           addTextToStream({ id: Date.now(), text: `Player ${userDisplayNames[event.payload.target_id]} has been voted off.` });
           break;
 
         case 'action.vote_cast':
           const { actor_id, target_id } = event.payload;
-          if (actor_id !== userUuid) {
+          console.debug("Received vote_cast:", { actor_id, target_id, userUuid, currentPhase });
+          if (actor_id === userUuid) {
+            // Update our own selection (for medic heal votes and mafia kill votes)
+            console.debug("Updating own selection from", votingSelectedByPlayer, "to", target_id);
+            votingSelectedByPlayer = target_id;
+            console.debug("Selection updated successfully:", votingSelectedByPlayer);
+          } else {
             // votingSelectedByOthers[target_id] = (votingSelectedByOthers[target_id] || 0) + 1;
           }
           break;
@@ -356,6 +403,15 @@ function showAlert(message, timeout = 3000) {
           currentPhase = event.payload.phase;
           lastPhase = phaseEnd;
           phaseEnd = event.payload.phase_ends_at;
+
+          if (window.pendingPhaseExtension && phaseEnd) {
+            phaseEnd += window.pendingPhaseExtension;
+            window.pendingPhaseExtension = 0;
+          }
+
+          // Reset voting selection when phase changes
+          votingSelectedByPlayer = "";
+
           if (currentPhase === 'ended') {
             alert("Game ended!");
             addTextToStream({ id: Date.now(), text: "The game ended. Winner: " + winner + "!" });
@@ -364,6 +420,7 @@ function showAlert(message, timeout = 3000) {
           } else if (currentPhase === 'character_intro') {
             addTextToStream({ id: Date.now(), text: "🎭 Meet the townspeople..." });
           } else {
+            // Basic phase announcements in main chat
             addTextToStream({ id: Date.now(), text: "A new " + currentPhase + " began..." });
           }
           scrollToBottom(textStream);
@@ -390,6 +447,68 @@ function showAlert(message, timeout = 3000) {
     } else {
       window.document.body.classList.remove('night');
     }
+  }
+
+  /**
+   * Extend phase time to account for narrator/profile display
+   * @param {number} seconds
+   */
+  function extendPhaseTime(seconds) {
+    if (phaseEnd === undefined || isNaN(phaseEnd) || phaseEnd === 0) {
+      if (!window.pendingPhaseExtension) window.pendingPhaseExtension = 0;
+      window.pendingPhaseExtension += seconds;
+      return;
+    }
+
+    if (window.pendingPhaseExtension) {
+      seconds += window.pendingPhaseExtension;
+      window.pendingPhaseExtension = 0;
+    }
+
+    phaseEnd += seconds;
+  }
+
+  async function displayProfilesSequentially() {
+    if (isDisplayingProfiles || profileQueue.length === 0 || narratorAnimating) return;
+
+    isDisplayingProfiles = true;
+    loadingProfiles = false;
+
+    for (let i = 0; i < profileQueue.length; i++) {
+      const profile = profileQueue[i];
+      currentProfile = profile;
+      profileIndex = i + 1;
+      showingProfiles = true;
+
+      await new Promise(resolve => setTimeout(resolve, 6000));
+    }
+
+    showingProfiles = false;
+    currentProfile = null;
+    isDisplayingProfiles = false;
+
+    ws.send(JSON.stringify({ type: 'opening.story_request' }));
+
+    setTimeout(() => {
+      if (!narratorAnimating && !narratorVisible) {
+        const fallbackStory = "As darkness falls over the quiet town, the residents lock their doors and draw their curtains. Tonight, secrets will be revealed and alliances tested. The game begins...";
+        showNarratorMessage(fallbackStory);
+      }
+    }, 3000);
+  }
+
+  async function showNarratorMessage(text) {
+    if (narratorAnimating || showingProfiles) return;
+
+    narratorText = text;
+    narratorDisplayText = text;
+    narratorVisible = true;
+    narratorAnimating = true;
+
+    setTimeout(() => {
+      narratorVisible = false;
+      narratorAnimating = false;
+    }, 15000);
   }
 </script>
 
@@ -460,12 +579,34 @@ function showAlert(message, timeout = 3000) {
   </div>
 </main>
 
+<!-- Loading Overlay for Profiles -->
+{#if loadingProfiles}
+  <div class="loading-overlay">
+    <div class="loading-content">
+      <div class="loading-spinner"></div>
+      <h2>🎭 Preparing Character Introductions...</h2>
+      <p>Creating unique townspeople for your story...</p>
+    </div>
+  </div>
+{/if}
+
 <CharacterProfileCard
   profile={currentProfile}
   visible={showingProfiles}
   currentIndex={profileIndex}
   totalCount={totalProfiles}
 />
+
+<!-- Narrator Block with Overlay -->
+{#if narratorVisible}
+  <div class="narrator-overlay">
+    <div class="narrator-block" class:visible={narratorVisible}>
+      <div class="narrator-text">
+        {narratorDisplayText}
+      </div>
+    </div>
+  </div>
+{/if}
 
 <style>
   :global(body) {
@@ -646,5 +787,127 @@ function showAlert(message, timeout = 3000) {
   .non-blocking-alert.show {
     opacity: 1;
     transform: translateY(0);
+  }
+
+  /* Narrator Overlay */
+  .loading-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.9);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    backdrop-filter: blur(5px);
+    z-index: 1000;
+  }
+
+  .loading-content {
+    text-align: center;
+    color: #f4f4f4;
+    background: linear-gradient(135deg, #2c1810, #4a2c1a);
+    border: 2px solid #8b4513;
+    border-radius: 15px;
+    padding: 40px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.8);
+  }
+
+  .loading-spinner {
+    width: 50px;
+    height: 50px;
+    border: 4px solid #8b4513;
+    border-top: 4px solid #d4af37;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin: 0 auto 20px;
+  }
+
+  @keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+  }
+
+  .loading-content h2 {
+    margin: 0 0 10px 0;
+    color: #d4af37;
+    font-size: 1.5em;
+  }
+
+  .loading-content p {
+    margin: 0;
+    color: #b8860b;
+    font-style: italic;
+  }
+
+  .narrator-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.7);
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    backdrop-filter: blur(3px);
+  }
+
+  /* Narrator Block */
+  .narrator-block {
+    background: linear-gradient(135deg, #2c1810, #4a2c1a);
+    border: 2px solid #8b4513;
+    border-radius: 12px;
+    padding: 30px 40px;
+    max-width: 70%;
+    min-width: 500px;
+    max-height: 60%;
+    overflow-y: auto;
+    box-shadow: 0 8px 25px rgba(0,0,0,0.8);
+    font-family: 'Georgia', serif;
+    opacity: 0;
+    transform: scale(0.9);
+    transition: all 0.3s ease;
+  }
+
+  .narrator-block.visible {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  .narrator-block::before {
+    content: '🎭';
+    position: absolute;
+    top: -15px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #2c1810;
+    padding: 8px 12px;
+    border-radius: 50%;
+    font-size: 1.5em;
+    border: 2px solid #8b4513;
+  }
+
+  .narrator-text {
+    color: #f4e4bc;
+    font-size: 1.2em;
+    line-height: 1.8;
+    text-align: center;
+    font-style: italic;
+    text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
+    margin-top: 10px;
+    padding: 0 10px;
+  }
+
+  /* Night theme adjustments for narrator */
+  :global(body.night) .narrator-block {
+    background: linear-gradient(135deg, #1a1a2e, #16213e);
+    border-color: #4a5568;
+  }
+
+  :global(body.night) .narrator-block::before {
+    background: #1a1a2e;
   }
 </style>
