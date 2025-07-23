@@ -1,14 +1,12 @@
 <script>
   import { onMount } from 'svelte';
 
-  let { text = '', speed = 50 } = $props(); // milliseconds per word
+  let { text = '', speed = 40, onAnimationComplete = null } = $props(); // milliseconds per character - same as narrator
 
   let displayedText = $state('');
   let isAnimating = $state(false);
   let lastText = $state('');
   let animationComplete = $state(false);
-
-  let words = $derived(text.split(' '));
 
   $effect(() => {
     if (text && text !== lastText && !isAnimating) {
@@ -17,31 +15,32 @@
       startAnimation();
     }
   });
-  
-  function startAnimation() {
+
+  async function startAnimation() {
     if (!text || isAnimating || animationComplete) return;
 
     isAnimating = true;
     displayedText = '';
 
-    let currentWordIndex = 0;
+    for (let i = 0; i <= text.length; i++) {
+      if (!isAnimating) break; // Allow interruption
 
-    const interval = setInterval(() => {
-      if (currentWordIndex < words.length) {
-        if (currentWordIndex === 0) {
-          displayedText = words[currentWordIndex];
-        } else {
-          displayedText += ' ' + words[currentWordIndex];
-        }
-        currentWordIndex++;
-      } else {
-        clearInterval(interval);
-        isAnimating = false;
-        animationComplete = true;
-      }
-    }, speed);
+      displayedText = text.substring(0, i);
+      await new Promise(resolve => setTimeout(resolve, speed));
+    }
+
+    console.log('🎭 AnimatedText finished, adding 3s pause...');
+    await new Promise(resolve => setTimeout(resolve, 3000));
+    console.log('🎭 AnimatedText pause completed');
+
+    isAnimating = false;
+    animationComplete = true;
+
+    if (onAnimationComplete) {
+      onAnimationComplete();
+    }
   }
-  
+
   onMount(() => {
     return () => {
       isAnimating = false;
