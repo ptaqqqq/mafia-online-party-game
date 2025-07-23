@@ -20,8 +20,13 @@
    * @param {number} ms
    */
   function formatDuration(ms) {
+    if (isNaN(ms) || ms === null || ms === undefined) {
+      console.error(`🕐 formatDuration: Invalid ms value: ${ms}`);
+      return "00:00";
+    }
+
     if (ms <= 1000) {
-      return "Waiting...";
+      return "00:00";
     }
 
     const totalSeconds = Math.floor(ms / 1000);
@@ -29,7 +34,6 @@
     const totalMinutes = Math.floor(totalSeconds / 60);
     const minutes = totalMinutes % 60;
     const hours = Math.floor(totalMinutes / 60);
-
 
     const s = String(seconds).padStart(2, "0");
     const m = String(minutes).padStart(2, "0");
@@ -47,6 +51,8 @@
   let lastPhase = $state(Date.now() / 1000.0);
   let phaseEnd = $state(Date.now() / 1000.0);
   let winner = $state('n/a')
+  let narratorActiveFromBackend = $state(false);
+  let timerPausedAt = $state(0);
   let showingProfiles = $state(false);
   let currentProfile = $state(null);
   let profileIndex = $state(0);
@@ -65,14 +71,55 @@
   let profileTimeout = null;
   let loadingProfiles = $state(false);
 
-  let phaseMillisecondsLeft = $derived(Math.max(0, (phaseEnd - now) * 1000));
-  let gameInfo = $derived({
-    lobbyCode: lobbyCode,
-    nickname: nickname,
-    phase: currentPhase,
-    uuid: userUuid,
-    nextPhase: '' + Math.round(phaseMillisecondsLeft / 1000) + ' s',
-    winner: winner
+  let phaseMillisecondsLeft = $derived.by(() => {
+    // Simple validation - just check if numbers exist and are valid
+    if (!phaseEnd || isNaN(phaseEnd) || !now || isNaN(now)) {
+      console.warn(`⚠️ Invalid values: phaseEnd=${phaseEnd}, now=${now}`);
+      return 30000; // 30 seconds fallback
+    }
+
+    const validTimerPausedAt = timerPausedAt && !isNaN(timerPausedAt) ? timerPausedAt : 0;
+
+    if (narratorActiveFromBackend && validTimerPausedAt > 0) {
+      // Timer is paused - return the time that was left when paused
+      const pausedTime = Math.max(0, (phaseEnd - validTimerPausedAt) * 1000);
+
+      return pausedTime;
+    } else {
+      // Timer is running normally
+      const normalTime = Math.max(0, (phaseEnd - now) * 1000);
+
+      return normalTime;
+    }
+  });
+  let gameInfo = $derived.by(() => {
+    const timeLeft = phaseMillisecondsLeft;
+    let nextPhaseText;
+
+    if (isNaN(timeLeft)) {
+      nextPhaseText = 'Loading...';
+    } else if (timeLeft < 0) {
+      nextPhaseText = 'Time up!';
+    } else if (timeLeft <= 1000) {
+      nextPhaseText = '00:00';
+    } else {
+      // Use same logic as formatDuration
+      const totalSeconds = Math.floor(timeLeft / 1000);
+      const seconds = totalSeconds % 60;
+      const minutes = Math.floor(totalSeconds / 60) % 60;
+      const s = String(seconds).padStart(2, "0");
+      const m = String(minutes).padStart(2, "0");
+      nextPhaseText = `${m}:${s}`;
+    }
+
+    return {
+      lobbyCode: lobbyCode,
+      nickname: nickname,
+      phase: currentPhase,
+      uuid: userUuid,
+      nextPhase: nextPhaseText,
+      winner: winner
+    };
   });
 
   /// User list ///
@@ -162,28 +209,27 @@
   /** @type {Record<string, number>} */
   let votingSelectedByOthers = $state({});
   const votingSelectHandler = (/** @type {any} */ option) => {
-    if (phaseMillisecondsLeft > 1000) {
-      console.debug("Selected vote for", option);
-      console.debug("User role check - mafia:", mafiosi.includes(userUuid), "medic:", medics.includes(userUuid));
+    // Usuń blokadę timera - pozwól głosować zawsze gdy voting jest aktywny
+    console.debug("Selected vote for", option, "phaseTime:", phaseMillisecondsLeft);
+    console.debug("User role check - mafia:", mafiosi.includes(userUuid), "medic:", medics.includes(userUuid));
 
-      // Set selection immediately for all roles to show instant feedback
-      votingSelectedByPlayer = option;
+    // Set selection immediately for all roles to show instant feedback
+    votingSelectedByPlayer = option;
 
-      if (currentPhase === 'voting') {
-        const payload = { actor_id: userUuid, target_id: option };
-        console.debug("Sending voting action:", payload);
-        ws.send(JSON.stringify({ type: 'action.vote', payload }));
-      } else if (currentPhase === 'night' && mafiosi.includes(userUuid)) {
-        const payload = { actor_id: userUuid, action: 'kill', target_id: option };
-        console.debug("Sending MAFIA kill action:", payload);
-        ws.send(JSON.stringify({ type: 'action.night', payload }));
-      } else if (currentPhase === 'night' && medics.includes(userUuid)) {
-        const payload = { actor_id: userUuid, action: 'heal', target_id: option };
-        console.debug("Sending MEDIC heal action:", payload);
-        ws.send(JSON.stringify({ type: 'action.night', payload }));
-      } else {
-        console.debug("No action sent - phase:", currentPhase, "mafia:", mafiosi.includes(userUuid), "medic:", medics.includes(userUuid));
-      }
+    if (currentPhase === 'voting') {
+      const payload = { actor_id: userUuid, target_id: option };
+      console.debug("Sending voting action:", payload);
+      ws.send(JSON.stringify({ type: 'action.vote', payload }));
+    } else if (currentPhase === 'night' && mafiosi.includes(userUuid)) {
+      const payload = { actor_id: userUuid, action: 'kill', target_id: option };
+      console.debug("Sending MAFIA kill action:", payload);
+      ws.send(JSON.stringify({ type: 'action.night', payload }));
+    } else if (currentPhase === 'night' && medics.includes(userUuid)) {
+      const payload = { actor_id: userUuid, action: 'heal', target_id: option };
+      console.debug("Sending MEDIC heal action:", payload);
+      ws.send(JSON.stringify({ type: 'action.night', payload }));
+    } else {
+      console.debug("No action sent - phase:", currentPhase, "mafia:", mafiosi.includes(userUuid), "medic:", medics.includes(userUuid));
     }
   };
 
@@ -234,7 +280,15 @@ function showAlert(message, timeout = 3000) {
   function connect() {
     ws = new WebSocket(`/ws/${lobbyCode}`);
 
-    ws.onopen = () => console.log('WebSocket connected');
+    ws.onopen = () => {
+      console.log('WebSocket connected');
+      // Request initial game state after connection
+      setTimeout(() => {
+        if (userUuid && userUuid !== 'n/a') {
+          ws.send(JSON.stringify({ type: 'game.sync_request', player_id: userUuid }));
+        }
+      }, 500);
+    };
     ws.onmessage = async (evt) => {
       const event = JSON.parse(evt.data);
       console.debug(event)
@@ -317,11 +371,39 @@ function showAlert(message, timeout = 3000) {
           break;
 
         case 'game.state':
-          console.log('received game state')
           const st = event.payload;
-
           currentPhase = st.phase;
+
+          // Set phaseEnd with validation
           phaseEnd = st.phase_ends_at;
+          if (phaseEnd === undefined || phaseEnd === null || isNaN(phaseEnd)) {
+            console.error(`🚨 Invalid phaseEnd received: ${phaseEnd}, using fallback`);
+            phaseEnd = (Date.now() / 1000) + 30; // Current time + 30 seconds
+          }
+
+          // Handle narrator active state
+          const wasNarratorActive = narratorActiveFromBackend;
+          narratorActiveFromBackend = st.narrator_active || false;
+
+
+
+          if (narratorActiveFromBackend && !wasNarratorActive) {
+            // Narrator just became active - pause timer
+            timerPausedAt = now;
+            console.log(`🎭 Timer paused - narrator became active at ${now}, phaseEnd=${phaseEnd}`);
+          } else if (!narratorActiveFromBackend && wasNarratorActive) {
+            // Narrator just became inactive - resume timer and finish animation
+            timerPausedAt = 0;
+            console.log(`🎭 Timer resumed - narrator became inactive`);
+
+            // Finish narrator animation if it's still running
+            if (narratorAnimating) {
+              narratorVisible = false;
+              narratorAnimating = false;
+              narratorTypewriterActive = false;
+              console.log('🎭 Narrator animation finished by backend signal');
+            }
+          }
 
           if (window.pendingPhaseExtension && phaseEnd) {
             phaseEnd += window.pendingPhaseExtension;
@@ -375,7 +457,7 @@ function showAlert(message, timeout = 3000) {
           break;
 
         case 'narrator.message':
-          showNarratorMessage(event.payload.text);
+          showNarratorMessage(event.payload.text, event.payload.duration);
           break;
 
         case 'action.morning_news':
@@ -436,9 +518,12 @@ function showAlert(message, timeout = 3000) {
   }
 
   onMount(connect)
+  // Sync game state every 5 seconds (reduced from 1 second)
   onMount(() => setInterval(() => {
-    ws.send(JSON.stringify({ type: 'game.sync_request', player_id: userUuid }));
-  }, 1000))
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: 'game.sync_request', player_id: userUuid }));
+    }
+  }, 5000))
 
   /**
      * @param {boolean} night
@@ -499,7 +584,7 @@ function showAlert(message, timeout = 3000) {
     }, 3000);
   }
 
-  async function showNarratorMessage(text) {
+  async function showNarratorMessage(text, duration) {
     if (narratorAnimating || showingProfiles) return;
 
     narratorText = text;
@@ -509,19 +594,18 @@ function showAlert(message, timeout = 3000) {
     narratorAnimating = true;
     narratorTypewriterActive = true;
 
+    console.log(`🎭 Starting narrator animation for ${duration}s: ${text}`);
+    console.log(`🎭 Frontend will NOT auto-finish - waiting for backend narrator_active=false`);
+
     // Start typewriter effect
     await typewriterEffect(text);
 
-    // Keep visible for a while after typing is done
-    setTimeout(() => {
-      narratorVisible = false;
-      narratorAnimating = false;
-      narratorTypewriterActive = false;
-    }, 8000);
+    // Don't auto-finish - wait for backend to set narrator_active=false
+    console.log(`🎭 Typewriter finished, waiting for backend to finish narrator...`);
   }
 
   async function typewriterEffect(text) {
-    const typingSpeed = 50; // milliseconds per character
+    const typingSpeed = 5; // milliseconds per character (ultra szybkie)
 
     for (let i = 0; i <= text.length; i++) {
       if (!narratorTypewriterActive) break;
