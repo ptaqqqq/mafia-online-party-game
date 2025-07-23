@@ -1,7 +1,7 @@
 <script>
   import AnimatedText from './AnimatedText.svelte';
 
-  let { profile = null, visible = false, currentIndex = 1, totalCount = 4 } = $props();
+  let { profile = null, visible = false, currentIndex = 1, totalCount = 6 } = $props();
   
   let cardElement = $state();
   let animationClass = $state('');
