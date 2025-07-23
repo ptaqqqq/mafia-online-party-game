@@ -133,6 +133,22 @@ class MessageReceived(GameEvent):
     payload: MessagePayload
 
 
+class NarratorMessagePayload(CamelModel):
+    text: str = Field(..., description="Narrator message text")
+    timestamp: float = Field(
+        ..., description="When this message was sent (Unix timestamp)"
+    )
+
+
+class NarratorMessage(GameEvent):
+    type: Literal["narrator.message"]
+    payload: NarratorMessagePayload
+
+
+class OpeningStoryRequest(GameEvent):
+    type: Literal["opening.story_request"]
+
+
 class PlayerState(CamelModel):
     player_id: str
     name: str
