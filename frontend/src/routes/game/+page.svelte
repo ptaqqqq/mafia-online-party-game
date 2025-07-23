@@ -70,6 +70,7 @@
   let isDisplayingProfiles = $state(false);
   let profileTimeout = null;
   let loadingProfiles = $state(false);
+  let currentProfileResolver = null;
 
   let phaseMillisecondsLeft = $derived.by(() => {
     // Simple validation - just check if numbers exist and are valid
@@ -567,7 +568,10 @@ function showAlert(message, timeout = 3000) {
       profileIndex = i + 1;
       showingProfiles = true;
 
-      await new Promise(resolve => setTimeout(resolve, 6000));
+      // Wait for animation to complete via callback
+      await new Promise(resolve => {
+        currentProfileResolver = resolve;
+      });
     }
 
     showingProfiles = false;
@@ -582,6 +586,14 @@ function showAlert(message, timeout = 3000) {
         showNarratorMessage(fallbackStory);
       }
     }, 3000);
+  }
+
+  function handleProfileComplete() {
+    console.log('🎭 Profile completed, resolving...');
+    if (currentProfileResolver) {
+      currentProfileResolver();
+      currentProfileResolver = null;
+    }
   }
 
   async function showNarratorMessage(text, duration) {
@@ -605,7 +617,7 @@ function showAlert(message, timeout = 3000) {
   }
 
   async function typewriterEffect(text) {
-    const typingSpeed = 5; // milliseconds per character (ultra szybkie)
+    const typingSpeed = 40; // milliseconds per character (comfortable reading pace)
 
     for (let i = 0; i <= text.length; i++) {
       if (!narratorTypewriterActive) break;
@@ -617,6 +629,10 @@ function showAlert(message, timeout = 3000) {
     }
 
     narratorTypewriterActive = false;
+
+    console.log('🎭 Typewriter finished, adding 3s pause...');
+    await new Promise(resolve => setTimeout(resolve, 3000));
+    console.log('🎭 Pause completed');
   }
 </script>
 
@@ -722,6 +738,7 @@ function showAlert(message, timeout = 3000) {
   visible={showingProfiles}
   currentIndex={profileIndex}
   totalCount={totalProfiles}
+  onProfileComplete={handleProfileComplete}
 />
 
 <!-- Narrator Block with Overlay -->
