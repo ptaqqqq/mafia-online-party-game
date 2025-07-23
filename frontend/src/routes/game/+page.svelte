@@ -57,6 +57,8 @@
   let narratorText = $state("");
   let narratorDisplayText = $state("");
   let narratorAnimating = $state(false);
+  let narratorCharIndex = $state(0);
+  let narratorTypewriterActive = $state(false);
   let allProfiles = $state([]);
   let profileQueue = $state([]);
   let isDisplayingProfiles = $state(false);
@@ -501,14 +503,36 @@ function showAlert(message, timeout = 3000) {
     if (narratorAnimating || showingProfiles) return;
 
     narratorText = text;
-    narratorDisplayText = text;
+    narratorDisplayText = "";
+    narratorCharIndex = 0;
     narratorVisible = true;
     narratorAnimating = true;
+    narratorTypewriterActive = true;
 
+    // Start typewriter effect
+    await typewriterEffect(text);
+
+    // Keep visible for a while after typing is done
     setTimeout(() => {
       narratorVisible = false;
       narratorAnimating = false;
-    }, 15000);
+      narratorTypewriterActive = false;
+    }, 8000);
+  }
+
+  async function typewriterEffect(text) {
+    const typingSpeed = 50; // milliseconds per character
+
+    for (let i = 0; i <= text.length; i++) {
+      if (!narratorTypewriterActive) break;
+
+      narratorDisplayText = text.substring(0, i);
+      narratorCharIndex = i;
+
+      await new Promise(resolve => setTimeout(resolve, typingSpeed));
+    }
+
+    narratorTypewriterActive = false;
   }
 </script>
 
@@ -543,30 +567,49 @@ function showAlert(message, timeout = 3000) {
           </div>
           <div class="voting-options">
           {#each votingOptions as option}
-            <button
-              class="voting-button"
-              onclick={() => {
-                votingSelectHandler(option);
-              }}
-            >
-              {#each Array(votingSelectedByOthers[option] ?? 0) as _, i}
-                <span>[</span>
-              {/each}
+            <div class="voting-card {votingSelectedByPlayer === option ? 'selected' : ''} {(votingSelectedByOthers[option] ?? 0) > 0 ? 'has-votes' : ''}">
+              <button
+                class="voting-button"
+                onclick={() => {
+                  votingSelectHandler(option);
+                }}
+              >
+                <div class="player-info">
+                  <img src="https://avatar.iran.liara.run/public?username={option}" alt="{userDisplayNames[option]}'s avatar" class="voting-avatar" />
+                  <div class="player-details">
+                    <div class="player-name">{userDisplayNames[option]}</div>
+                    {#if mafiosi.includes(option)}
+                      <div class="player-role mafia">🔪 Mafia</div>
+                    {:else if medics.includes(option)}
+                      <div class="player-role medic">⚕️ Medic</div>
+                    {:else}
+                      <div class="player-role citizen">👤 Citizen</div>
+                    {/if}
+                  </div>
+                </div>
 
-              {#if votingSelectedByPlayer === option}
-                <span>(</span>
-              {/if}
+                {#if votingSelectedByPlayer === option}
+                  <div class="your-vote-indicator">
+                    <span class="vote-icon">✓</span>
+                    <span class="vote-text">Your Vote</span>
+                  </div>
+                {/if}
 
-              {userDisplayNames[option]}
-
-              {#if votingSelectedByPlayer === option}
-                <span>)</span>
-              {/if}
-
-              {#each Array(votingSelectedByOthers[option] ?? 0) as _, i}
-                <span>]</span>
-              {/each}
-            </button>
+                {#if (votingSelectedByOthers[option] ?? 0) > 0}
+                  <div class="others-votes">
+                    <div class="vote-count">{votingSelectedByOthers[option]}</div>
+                    <div class="vote-dots">
+                      {#each Array(Math.min(votingSelectedByOthers[option] ?? 0, 5)) as _, i}
+                        <span class="vote-dot">●</span>
+                      {/each}
+                      {#if (votingSelectedByOthers[option] ?? 0) > 5}
+                        <span class="vote-more">+{(votingSelectedByOthers[option] ?? 0) - 5}</span>
+                      {/if}
+                    </div>
+                  </div>
+                {/if}
+              </button>
+            </div>
           {/each}
         </div>
         </div>
@@ -601,8 +644,27 @@ function showAlert(message, timeout = 3000) {
 {#if narratorVisible}
   <div class="narrator-overlay">
     <div class="narrator-block" class:visible={narratorVisible}>
-      <div class="narrator-text">
-        {narratorDisplayText}
+      <div class="narrator-header">
+        <div class="narrator-icon">🎭</div>
+        <h2>The Narrator Speaks</h2>
+      </div>
+
+      <div class="narrator-content">
+        <div class="narrator-text">
+          {narratorDisplayText}<span class="cursor" class:blinking={narratorTypewriterActive}>|</span>
+        </div>
+      </div>
+
+      <div class="narrator-footer">
+        <div class="story-progress">
+          <div class="progress-dots">
+            <span class="dot active"></span>
+            <span class="dot active"></span>
+            <span class="dot active"></span>
+            <span class="dot"></span>
+            <span class="dot"></span>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -640,18 +702,43 @@ function showAlert(message, timeout = 3000) {
     left: 0;
     width: 100vw;
     height: 100vh;
-    background: rgba(0, 0, 0, 0.6);
+    background: rgba(0, 0, 0, 0.85);
     display: flex;
     flex-direction: column;
     justify-content: center;
     align-items: center;
     z-index: 100;
+    backdrop-filter: blur(8px);
+    padding: 2rem;
+    box-sizing: border-box;
   }
 
   .chat-timer {
-    margin-bottom: 0;
-    padding-bottom: 0;
-    color: #f0f0f0;
+    background: linear-gradient(135deg, #d4af37, #b8860b);
+    color: #2c1810;
+    padding: 1rem 2rem;
+    border-radius: 25px;
+    font-weight: bold;
+    font-size: 1.5em;
+    margin-bottom: 1.5rem;
+    border: 3px solid #8b4513;
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.5);
+    text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.3);
+    font-family: 'Georgia', serif;
+    letter-spacing: 1px;
+    animation: timerPulse 2s infinite;
+  }
+
+  @keyframes timerPulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.02); }
+  }
+
+  .modal :global(.chat-container) {
+    max-width: 800px;
+    width: 90%;
+    max-height: 70vh;
+    min-height: 500px;
   }
 
   main {
@@ -722,31 +809,215 @@ function showAlert(message, timeout = 3000) {
   .voting-header {
     display: flex;
     max-width: 100%;
+    align-items: center;
+    margin-bottom: 1.5rem;
+  }
+
+  .voting-header p {
+    margin: 0;
+    font-size: 1.2em;
+    font-weight: bold;
+    color: #2c1810;
   }
 
   .voting-timer {
     margin-left: auto;
+    background: linear-gradient(135deg, #d4af37, #b8860b);
+    color: #2c1810;
+    padding: 0.5rem 1rem;
+    border-radius: 20px;
+    font-weight: bold;
+    border: 2px solid #8b4513;
   }
 
   .voting-options {
-    display: flex;
-    flex-flow: row wrap;
-    max-width: 100%;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
     gap: 1rem;
-    row-gap: 0rem;
+    max-width: 100%;
   }
 
-  .voting-options button {
-    all: unset;            /* reset every built‑in style */
-    display: inline;       /* behave like a <span> */
-    font: inherit;         /* use the parent's font settings */
-    color: inherit;        /* use the parent's text color */
-    cursor: pointer;       /* still look clickable */
-    font-weight: 500;
+  .voting-card {
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.95), rgba(240, 240, 240, 0.95));
+    border: 2px solid #8b4513;
+    border-radius: 15px;
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
   }
 
-  .voting-options button:hover {
-    font-weight: bolder;
+  .voting-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+  }
+
+  .voting-card.selected {
+    border-color: #d4af37;
+    background: linear-gradient(135deg, rgba(212, 175, 55, 0.2), rgba(184, 134, 11, 0.2));
+    box-shadow: 0 0 20px rgba(212, 175, 55, 0.5);
+  }
+
+  .voting-card.has-votes {
+    border-color: #dc143c;
+    background: linear-gradient(135deg, rgba(220, 20, 60, 0.1), rgba(178, 34, 34, 0.1));
+  }
+
+  .voting-card.selected.has-votes {
+    border-color: #ff6347;
+    background: linear-gradient(135deg, rgba(255, 99, 71, 0.2), rgba(220, 20, 60, 0.2));
+  }
+
+  .voting-button {
+    all: unset;
+    width: 100%;
+    padding: 1rem;
+    cursor: pointer;
+    display: block;
+    position: relative;
+  }
+
+  .player-info {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 0.5rem;
+  }
+
+  .voting-avatar {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    border: 3px solid #8b4513;
+    flex-shrink: 0;
+  }
+
+  .voting-card.selected .voting-avatar {
+    border-color: #d4af37;
+  }
+
+  .player-details {
+    flex: 1;
+  }
+
+  .player-name {
+    font-size: 1.1em;
+    font-weight: bold;
+    color: #2c1810;
+    font-family: 'Georgia', serif;
+    margin-bottom: 0.2rem;
+  }
+
+  .player-role {
+    font-size: 0.9em;
+    font-style: italic;
+    font-family: 'Georgia', serif;
+  }
+
+  .player-role.mafia {
+    color: #dc143c;
+    font-weight: bold;
+  }
+
+  .player-role.medic {
+    color: #228b22;
+    font-weight: bold;
+  }
+
+  .player-role.citizen {
+    color: #8b4513;
+  }
+
+  .your-vote-indicator {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+    background: linear-gradient(135deg, #d4af37, #b8860b);
+    color: #2c1810;
+    padding: 0.3rem 0.8rem;
+    border-radius: 15px;
+    font-size: 0.8em;
+    font-weight: bold;
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    box-shadow: 0 2px 8px rgba(212, 175, 55, 0.4);
+  }
+
+  .vote-icon {
+    font-size: 1em;
+  }
+
+  .vote-text {
+    font-family: 'Georgia', serif;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .others-votes {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 0.5rem;
+    padding-top: 0.5rem;
+    border-top: 1px solid rgba(139, 69, 19, 0.3);
+  }
+
+  .vote-count {
+    background: linear-gradient(135deg, #dc143c, #b22222);
+    color: white;
+    padding: 0.3rem 0.8rem;
+    border-radius: 15px;
+    font-weight: bold;
+    font-size: 0.9em;
+    min-width: 2rem;
+    text-align: center;
+  }
+
+  .vote-dots {
+    display: flex;
+    align-items: center;
+    gap: 0.2rem;
+    flex: 1;
+    justify-content: center;
+  }
+
+  .vote-dot {
+    color: #dc143c;
+    font-size: 1.2em;
+    animation: pulse 1.5s infinite;
+  }
+
+  .vote-dot:nth-child(2) { animation-delay: 0.3s; }
+  .vote-dot:nth-child(3) { animation-delay: 0.6s; }
+  .vote-dot:nth-child(4) { animation-delay: 0.9s; }
+  .vote-dot:nth-child(5) { animation-delay: 1.2s; }
+
+  .vote-more {
+    color: #dc143c;
+    font-weight: bold;
+    font-size: 0.9em;
+    margin-left: 0.3rem;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.6; transform: scale(1.1); }
+  }
+
+  @media (max-width: 800px) {
+    .voting-options {
+      grid-template-columns: 1fr;
+    }
+
+    .voting-header {
+      flex-direction: column;
+      gap: 1rem;
+      text-align: center;
+    }
+
+    .voting-timer {
+      margin-left: 0;
+    }
   }
 
   .lobby-info {
@@ -847,67 +1118,246 @@ function showAlert(message, timeout = 3000) {
     left: 0;
     width: 100%;
     height: 100%;
-    background: rgba(0, 0, 0, 0.7);
+    background: rgba(0, 0, 0, 0.95);
     z-index: 1000;
     display: flex;
     align-items: center;
     justify-content: center;
-    backdrop-filter: blur(3px);
+    backdrop-filter: blur(8px);
+    animation: fadeIn 0.5s ease-out;
   }
 
-  /* Narrator Block */
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
   .narrator-block {
-    background: linear-gradient(135deg, #2c1810, #4a2c1a);
-    border: 2px solid #8b4513;
-    border-radius: 12px;
-    padding: 30px 40px;
-    max-width: 70%;
-    min-width: 500px;
-    max-height: 60%;
-    overflow-y: auto;
-    box-shadow: 0 8px 25px rgba(0,0,0,0.8);
+    background: linear-gradient(135deg, #2c1810 0%, #4a2c1a 50%, #1a0f08 100%);
+    border: 3px solid #d4af37;
+    border-radius: 25px;
+    padding: 0;
+    max-width: 80%;
+    min-width: 600px;
+    max-height: 70%;
+    overflow: hidden;
+    box-shadow:
+      0 25px 50px rgba(0, 0, 0, 0.9),
+      0 0 30px rgba(212, 175, 55, 0.3),
+      inset 0 1px 0 rgba(255, 255, 255, 0.1);
     font-family: 'Georgia', serif;
     opacity: 0;
-    transform: scale(0.9);
-    transition: all 0.3s ease;
+    transform: scale(0.8) translateY(50px);
+    transition: all 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+    position: relative;
+  }
+
+  .narrator-block::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background:
+      radial-gradient(circle at 20% 20%, rgba(212, 175, 55, 0.1) 0%, transparent 50%),
+      radial-gradient(circle at 80% 80%, rgba(139, 69, 19, 0.1) 0%, transparent 50%);
+    pointer-events: none;
   }
 
   .narrator-block.visible {
     opacity: 1;
-    transform: scale(1);
+    transform: scale(1) translateY(0);
   }
 
-  .narrator-block::before {
-    content: '🎭';
+  .narrator-header {
+    background: linear-gradient(135deg, #d4af37, #b8860b);
+    padding: 1.5rem 2rem;
+    border-bottom: 2px solid #8b4513;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    position: relative;
+  }
+
+  .narrator-header::after {
+    content: '';
     position: absolute;
-    top: -15px;
+    bottom: -2px;
     left: 50%;
     transform: translateX(-50%);
-    background: #2c1810;
-    padding: 8px 12px;
-    border-radius: 50%;
-    font-size: 1.5em;
-    border: 2px solid #8b4513;
+    width: 100px;
+    height: 4px;
+    background: linear-gradient(90deg, transparent, #2c1810, transparent);
+    border-radius: 2px;
+  }
+
+  .narrator-icon {
+    font-size: 2.5em;
+    animation: float 3s ease-in-out infinite;
+    filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.5));
+  }
+
+  @keyframes float {
+    0%, 100% { transform: translateY(0px) rotate(0deg); }
+    50% { transform: translateY(-8px) rotate(5deg); }
+  }
+
+  .narrator-header h2 {
+    color: #2c1810;
+    font-size: 1.8em;
+    margin: 0;
+    font-weight: bold;
+    text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.3);
+    letter-spacing: 1px;
+  }
+
+  .narrator-content {
+    padding: 3rem;
+    min-height: 200px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
 
   .narrator-text {
     color: #f4e4bc;
-    font-size: 1.2em;
-    line-height: 1.8;
+    font-size: 1.4em;
+    line-height: 2;
     text-align: center;
     font-style: italic;
-    text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
-    margin-top: 10px;
-    padding: 0 10px;
+    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);
+    position: relative;
+    max-width: 100%;
+  }
+
+  .cursor {
+    color: #d4af37;
+    font-weight: bold;
+    font-style: normal;
+    animation: blink 1s infinite;
+  }
+
+  .cursor.blinking {
+    animation: blink 0.8s infinite;
+  }
+
+  @keyframes blink {
+    0%, 50% { opacity: 1; }
+    51%, 100% { opacity: 0; }
+  }
+
+  .narrator-footer {
+    background: linear-gradient(135deg, rgba(44, 24, 16, 0.8), rgba(26, 15, 8, 0.9));
+    padding: 1.5rem 2rem;
+    border-top: 1px solid rgba(212, 175, 55, 0.3);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
+
+  .story-progress {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+  }
+
+  .progress-dots {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+  }
+
+  .dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: rgba(139, 69, 19, 0.5);
+    border: 2px solid #8b4513;
+    transition: all 0.3s ease;
+  }
+
+  .dot.active {
+    background: linear-gradient(135deg, #d4af37, #b8860b);
+    border-color: #d4af37;
+    box-shadow: 0 0 10px rgba(212, 175, 55, 0.5);
+    animation: pulse 2s infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.2); }
   }
 
   /* Night theme adjustments for narrator */
   :global(body.night) .narrator-block {
-    background: linear-gradient(135deg, #1a1a2e, #16213e);
+    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f1419 100%);
     border-color: #4a5568;
   }
 
-  :global(body.night) .narrator-block::before {
-    background: #1a1a2e;
+  :global(body.night) .narrator-header {
+    background: linear-gradient(135deg, #4a5568, #2d3748);
+  }
+
+  :global(body.night) .narrator-header h2 {
+    color: #e2e8f0;
+  }
+
+  :global(body.night) .narrator-text {
+    color: #cbd5e0;
+  }
+
+  :global(body.night) .cursor {
+    color: #4a5568;
+  }
+
+  @media (max-width: 800px) {
+    .narrator-block {
+      min-width: 90%;
+      max-width: 95%;
+      margin: 1rem;
+    }
+
+    .narrator-header {
+      padding: 1rem 1.5rem;
+      flex-direction: column;
+      text-align: center;
+      gap: 0.5rem;
+    }
+
+    .narrator-icon {
+      font-size: 2em;
+    }
+
+    .narrator-header h2 {
+      font-size: 1.4em;
+    }
+
+    .narrator-content {
+      padding: 2rem 1.5rem;
+    }
+
+    .narrator-text {
+      font-size: 1.2em;
+      line-height: 1.8;
+    }
+
+    .narrator-footer {
+      padding: 1rem;
+    }
+  }
+
+  @media (max-width: 500px) {
+    .narrator-block {
+      min-width: 95%;
+    }
+
+    .narrator-content {
+      padding: 1.5rem 1rem;
+    }
+
+    .narrator-text {
+      font-size: 1.1em;
+    }
   }
 </style>
