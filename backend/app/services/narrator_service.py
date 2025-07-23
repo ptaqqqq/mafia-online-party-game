@@ -84,17 +84,19 @@ class NarratorService:
     {characters_text}
 
     Requirements:
-    - 3-4 sentences maximum
-    - Create atmosphere of mystery and tension
-    - Mention the approaching night
-    - Don't reveal anyone's role
-    - Make it feel like a movie opening
+    - 4-5 sentences maximum
+    - Create rich atmosphere of mystery and tension
+    - Reference specific residents and their roles in the community
+    - Mention the approaching night and growing unease
+    - Don't reveal anyone's game role (mafia/innocent)
+    - Make it feel like a cinematic thriller opening
+    - Use vivid, atmospheric language
 
-    Style: Dark, atmospheric, cinematic"""
+    Style: Dark, atmospheric, cinematic, literary. Think Stephen King meets Agatha Christie."""
 
             response = self.llm_client.generate_text(
                 prompt=prompt,
-                max_tokens=150,
+                max_tokens=250,  # Increased for richer narratives
                 temperature=0.8
             )
             
@@ -143,17 +145,19 @@ class NarratorService:
     Game atmosphere: {self.game_context.atmosphere}
 
     Requirements:
-    - 2-3 sentences maximum
+    - 3-4 sentences maximum
     - {style_instruction}
-    - Include details related to their profession/character
-    - Create emotional impact
+    - Reference their profession, personality, and place in the community
+    - Show how their death affects the town
+    - Use vivid, atmospheric details
+    - Create emotional impact and suspense
     - Don't reveal any game roles
 
-    Style: Cinematic, dramatic, immersive"""
+    Style: Cinematic, dramatic, immersive, literary. Think noir thriller meets small-town mystery."""
 
             response = self.llm_client.generate_text(
                 prompt=prompt,
-                max_tokens=120,
+                max_tokens=200,  # Increased for richer narratives
                 temperature=0.7
             )
             
@@ -167,10 +171,11 @@ class NarratorService:
             
         except Exception as e:
             logger.error(f"Failed to generate death narrative: {str(e)}")
+            # Rich fallback death narratives - instant and atmospheric
             if killer_role == "mafia":
-                return f"{victim_name} was found dead this morning. The town mourns another loss to the shadows."
+                return f"As dawn broke over the town square, {victim_name} was discovered motionless, their secrets forever silenced by the shadows that prowl these streets. The town mourns another soul claimed by the darkness."
             else:
-                return f"{victim_name} has been voted out by the town. Their fate is sealed."
+                return f"With heavy hearts and trembling hands, the townspeople have spoken. {victim_name} walks toward an uncertain fate, their footsteps echoing through streets that may never see them again."
 
     def generate_voting_narrative(self, voted_player: str, vote_results: Dict[str, Any]) -> str:
         """
@@ -202,17 +207,19 @@ class NarratorService:
     Game atmosphere: {self.game_context.atmosphere}
 
     Requirements:
-    - 2-3 sentences maximum
+    - 3-4 sentences maximum
     - Show the tension and emotion of the decision
-    - Include the community's reaction
-    - Reference their profession/character if relevant
+    - Reference their profession and role in the community
+    - Include the community's conflicted reaction
+    - Show how their exile affects the town
     - Create dramatic tension about whether it's the right choice
+    - Use atmospheric details
 
-    Style: Tense, emotional, community-focused"""
+    Style: Tense, emotional, community-focused, literary. Think town hall drama meets psychological thriller."""
 
             response = self.llm_client.generate_text(
                 prompt=prompt,
-                max_tokens=120,
+                max_tokens=200,  # Increased for richer narratives
                 temperature=0.7
             )
             
@@ -227,6 +234,58 @@ class NarratorService:
         except Exception as e:
             logger.error(f"Failed to generate voting narrative: {str(e)}")
             return f"After intense deliberation, the town has decided. {voted_player} must leave. Was this the right choice?"
+
+    def generate_save_narrative(self, saved_player: str, context: Dict[str, Any]) -> str:
+        """
+        Generate narrative for when someone is saved by medic
+
+        Args:
+            saved_player: Name of saved player
+            context: Additional context information
+
+        Returns:
+            Save narrative text
+        """
+        try:
+            saved_profile = self._get_character_context(saved_player)
+
+            if saved_profile:
+                saved_info = f"{saved_player} ({saved_profile.profession}): {saved_profile.description}"
+            else:
+                saved_info = f"{saved_player} (town resident)"
+
+            prompt = f"""Write a dramatic narrative about someone being saved by a medic in a mafia game.
+
+    Saved player: {saved_info}
+    Game atmosphere: {self.game_context.atmosphere}
+    Day count: {self.game_context.day_count}
+
+    Requirements:
+    - 2-3 sentences maximum
+    - Show that danger was averted without revealing the medic
+    - Reference their profession and place in the community
+    - Create mystery about what happened
+    - Suggest they were protected by "unseen forces" or "guardian angel"
+    - Don't reveal any game roles
+
+    Style: Mysterious, hopeful, atmospheric. Think divine intervention meets small-town mystery."""
+
+            response = self.llm_client.generate_text(
+                prompt=prompt,
+                max_tokens=150,
+                temperature=0.7
+            )
+
+            self._update_game_context("player_saved", {
+                "saved_player": saved_player,
+                "day_count": self.game_context.day_count
+            })
+
+            return response.strip()
+
+        except Exception as e:
+            logger.error(f"Failed to generate save narrative: {str(e)}")
+            return f"The night passed quietly. {saved_player} was protected by unseen forces."
 
     def generate_phase_transition(self, from_phase: str, to_phase: str) -> str:
         """
@@ -288,12 +347,12 @@ class NarratorService:
             
         except Exception as e:
             logger.error(f"Failed to generate phase transition: {str(e)}")
-            # Fallback transitions
+            # Rich fallback transitions - instant and atmospheric
             fallbacks = {
-                "night_to_day": "Dawn breaks over the troubled town...",
-                "day_to_voting": "The time for discussion has ended. Decisions must be made.",
-                "voting_to_night": "Night falls once again. Who will survive until morning?",
-                "lobby_to_night": "The game begins. Darkness descends upon the town."
+                "night_to_day": "As the first pale light of dawn creeps over the town, the shadows retreat reluctantly, leaving behind whispers of secrets that linger in the crisp morning air.",
+                "day_to_voting": "The sun reaches its zenith as heated discussions fill the town square. The time for words has passed - now comes the moment of terrible decision.",
+                "voting_to_night": "As twilight descends like a heavy curtain, the town holds its breath. Another night of uncertainty awaits, and not everyone may see the dawn.",
+                "lobby_to_night": "The game begins as darkness falls over the quiet town. Behind closed doors and drawn curtains, secrets stir and alliances form in the shadows."
             }
             return fallbacks.get(transition_type, f"The {to_phase} phase begins...")
 

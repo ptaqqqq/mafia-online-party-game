@@ -88,8 +88,8 @@ class CharacterGenerator:
             
             logger.info(f"Generating profile for {name} - {profession}")
             response = self.llm_client.generate_text(
-                prompt, 
-                max_tokens=100,
+                prompt,
+                max_tokens=300,  # Increased for richer descriptions
                 temperature=0.8
             )
             profile = self._parse_llm_response(response, player_id, name, profession)
@@ -126,22 +126,23 @@ class CharacterGenerator:
         Returns:
             Formatted prompt string
         """
-        prompt = f"""Create a character profile for a mafia game set in a small town.
+        prompt = f"""Create a rich character profile for a mafia game set in a small town.
 
     Character Details:
     - Name: {name}
     - Profession: {profession}
 
-    Generate a short character description (maximum 2 sentences) that includes:
-    1. What they do in their profession
-    2. One interesting personality trait or habit
-    3. How they might be connected to the town
+    Generate a detailed character description (3-4 sentences) that includes:
+    1. What they do in their profession and how they're known in town
+    2. A distinctive personality trait, hobby, or quirk
+    3. Their personal history or family connections in town
+    4. Something that makes them memorable and unique
 
-    Style: Realistic, intriguing but not suspicious. Make them feel like a real person.
+    Style: Vivid, atmospheric, memorable. Create a person with depth and secrets.
     Language: English
     Format: Return only the description, no extra text.
 
-    Example: "Sarah runs the local library and knows everyone's reading habits by heart. She's known for her excellent memory and often helps townspeople find lost items."
+    Example: "Sarah runs the local library and has memorized every book on the shelves, often recommending obscure titles that somehow perfectly match what people need. She moved to town fifteen years ago after inheriting the library from her mysterious aunt, and locals whisper that she knows more town secrets than anyone realizes. Every evening, she can be seen tending to her rooftop garden of rare herbs, claiming they help her 'remember important things.'"
     """
         return prompt
 
@@ -161,8 +162,8 @@ class CharacterGenerator:
         description = response.strip()
         if description.startswith('"') and description.endswith('"'):
             description = description[1:-1]
-        if len(description) > 200:
-            description = description[:200] + "..."
+        if len(description) > 400:
+            description = description[:400] + "..."
         emoji = self._get_profession_emoji(profession)
         return CharacterProfile(
             player_id=player_id,
