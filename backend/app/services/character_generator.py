@@ -86,10 +86,10 @@ class CharacterGenerator:
         try:
             prompt = self._create_character_prompt(name, profession)
             
-            logger.info(f"Generating profile for {name} - {profession}")
+            logger.info(f"Generating profile for {name} - {profession}") 
             response = self.llm_client.generate_text(
                 prompt,
-                max_tokens=300,
+                max_tokens=150,
                 temperature=0.8
             )
             profile = self._parse_llm_response(response, player_id, name, profession)
@@ -118,31 +118,31 @@ class CharacterGenerator:
     def _create_character_prompt(self, name: str, profession: str) -> str:
         """
         Create prompt for character generation
-        
+
         Args:
             name: Player name
             profession: Character profession
-            
+
         Returns:
             Formatted prompt string
         """
-        prompt = f"""Create a rich character profile for a mafia game set in a small town.
+        prompt = f"""Create a character profile for a mafia game set in a small town.
 
     Character Details:
     - Name: {name}
     - Profession: {profession}
 
-    Generate a detailed character description (3-4 sentences) that includes:
+    Generate a concise character description (2-3 sentences) that includes:
     1. What they do in their profession and how they're known in town
-    2. A distinctive personality trait, hobby, or quirk
-    3. Their personal history or family connections in town
-    4. Something that makes them memorable and unique
+    2. One distinctive personality trait or memorable quirk
+    3. A hint about their place in the community or a small mystery
 
-    Style: Vivid, atmospheric, memorable. Create a person with depth and secrets.
+    Style: Vivid, atmospheric, memorable but concise. Create a person with depth.
     Language: English
     Format: Return only the description, no extra text.
+    Length: Keep it under 200 characters for readability.
 
-    Example: "Sarah runs the local library and has memorized every book on the shelves, often recommending obscure titles that somehow perfectly match what people need. She moved to town fifteen years ago after inheriting the library from her mysterious aunt, and locals whisper that she knows more town secrets than anyone realizes. Every evening, she can be seen tending to her rooftop garden of rare herbs, claiming they help her 'remember important things.'"
+    Example: "Sarah runs the local library and knows every book by heart. She moved here after inheriting it from her mysterious aunt, and locals say she remembers everyone's secrets."
     """
         return prompt
 
@@ -162,8 +162,6 @@ class CharacterGenerator:
         description = response.strip()
         if description.startswith('"') and description.endswith('"'):
             description = description[1:-1]
-        if len(description) > 400:
-            description = description[:400] + "..."
         emoji = self._get_profession_emoji(profession)
         return CharacterProfile(
             player_id=player_id,
