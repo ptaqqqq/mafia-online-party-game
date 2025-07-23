@@ -20,6 +20,8 @@ from schemas.game import (
     MorningNewsPayload,
     NarratorMessage,
     NarratorMessagePayload,
+    NarratorFinished,
+    NarratorFinishedPayload,
     NightAction,
     OpeningStoryRequest,
     PhaseChange,
@@ -65,7 +67,7 @@ class GameManager:
         day_duration_s=75,
         vote_duration_s=35,
         lobby_duration_s=30,
-        character_intro_duration_s=10,
+        character_intro_duration_s=5,
         ended_duation_s=20
     ):
         self.mafiosi_count = mafiosi_count
@@ -95,7 +97,31 @@ class GameManager:
         self.heal_votes: Dict[str, str] = defaultdict(str)
         self.event_log: List[GameLogEntry] = []
         self.opening_story: str = ""
+        self.narrator_active = False
         self.logger = logging.getLogger(__name__)
+
+        self._tick_task = None
+        self._scheduler_started = False
+
+    def _ensure_tick_scheduler(self):
+        """Ensure the regular tick scheduler is running"""
+        if not self._scheduler_started:
+            try:
+                self._tick_task = asyncio.create_task(self._tick_loop())
+                self._scheduler_started = True
+                self.logger.info("🕐 Started game tick scheduler")
+            except RuntimeError as e:
+                self.logger.error(f"🕐 Failed to start scheduler: {e}")
+
+    async def _tick_loop(self):
+        """Regular tick loop that runs every second"""
+        while True:
+            try:
+                await self._tick()
+                await asyncio.sleep(1.0)
+            except Exception as e:
+                self.logger.error(f"🕐 Error in tick loop: {e}")
+                await asyncio.sleep(1.0)
 
     async def _broadcast(
         self, event: GameEvent, excluded_player_ids=None, included_player_roles=None
@@ -119,18 +145,58 @@ class GameManager:
             if should_send:
                 await player.receive_event(event)
 
+    def _calculate_narrator_duration(self, text: str) -> float:
+        """Calculate how long narrator animation should take"""
+        duration = 1.0
+        self.logger.info(f"🎭 Narrator duration: {len(text)} chars, fixed={duration}s")
+        return duration
+
     async def _send_narrator_message(self, text: str):
-        """Send narrator message to all players"""
+        """Send narrator message to all players with calculated duration"""
         import time
+
+        animation_duration = self._calculate_narrator_duration(text)
+
+        self.narrator_active = True
+        self.logger.info(f"🎭 narrator_active set to TRUE - timer should be paused")
+
         narrator_event = NarratorMessage(
             type="narrator.message",
             payload=NarratorMessagePayload(
                 text=text,
-                timestamp=time.time()
+                timestamp=time.time(),
+                duration=animation_duration
             )
         )
-        self.logger.info(f"🎭 Sending narrator message: {text}")
+
+        self.logger.info(f"🎭 Sending narrator message (duration: {animation_duration:.1f}s, timer paused): {text}")
         await self._broadcast(narrator_event)
+
+        await self._sync_game_state()
+
+        task = asyncio.create_task(self._schedule_narrator_finish(animation_duration))
+        self.logger.info(f"🎭 Created narrator finish task: {task}")
+
+        def task_done_callback(task):
+            if task.exception():
+                self.logger.error(f"🎭 Narrator finish task failed: {task.exception()}")
+            else:
+                self.logger.info(f"🎭 Narrator finish task completed successfully")
+
+        task.add_done_callback(task_done_callback)
+
+    async def _schedule_narrator_finish(self, duration: float):
+        """Automatically finish narrator after specified duration"""
+        self.logger.info(f"🎭 Narrator scheduled to finish in {duration:.1f}s")
+        await asyncio.sleep(duration)
+
+        self.next_phase_timestamp += duration
+        self.logger.info(f"🎭 Extended phase time by {duration:.1f}s - new end: {self.next_phase_timestamp}")
+
+        self.narrator_active = False
+        self.logger.info(f"🎭 narrator_active set to FALSE - timer resumed with extended time")
+
+        await self._sync_game_state()
 
     async def send_opening_story(self):
         if not self.opening_story:
@@ -234,7 +300,7 @@ class GameManager:
             )
             
             self.logger.info(f"Showed profile {index}/{len(self.character_profiles)}: {profiles.name} {profiles.profession}")
-            await asyncio.sleep(6)  # Increased from 4s to 6s for better readability
+            await asyncio.sleep(3)
 
         await self._broadcast(
             ProfilesComplete(
@@ -244,8 +310,6 @@ class GameManager:
             )
         self.showing_profiles = False
         self.logger.info("Finished showing character profiles")
-
-        # Opening story will be sent from frontend after profiles complete
 
     def _add_default_state_player_to_game_state(self, uuid: str):
         self.game_state.add_player(
@@ -327,6 +391,7 @@ class GameManager:
                 ],
                 phase=("lobby" if self.lobby else self.game_state.phase.value),
                 phase_ends_at=self.next_phase_timestamp,
+                narrator_active=self.narrator_active,
                 votes=visible_votes,
                 winner=winner,
                 logs=self.event_log,
@@ -351,6 +416,7 @@ class GameManager:
                 ],
                 phase=("lobby" if self.lobby else self.game_state.phase.value),
                 phase_ends_at=self.next_phase_timestamp,
+                narrator_active=self.narrator_active,
                 votes=self.cast_votes,
                 winner=winner,
                 logs=self.event_log,
@@ -391,8 +457,8 @@ class GameManager:
         self._reset_votes()
 
         num_players = len(self.players)
-        profile_time = num_players * 6
-        narrator_time = 15
+        profile_time = num_players * 3
+        narrator_time = 8
         total_intro_time = self.character_intro_duration_s + profile_time + narrator_time
 
         self.next_phase_timestamp = (datetime.now(tz=timezone.utc) + timedelta(seconds=total_intro_time)).timestamp()
@@ -419,7 +485,6 @@ class GameManager:
         self.game_state.end_night(vote_winner, heal_winner)
 
         if vote_winner and vote_winner != heal_winner:
-            # Someone was killed by mafia
             try:
                 victim_name = self.player_names.get(vote_winner, vote_winner)
                 death_narrative = self.narrator_service.generate_death_narrative(
@@ -438,7 +503,6 @@ class GameManager:
                 )
             )
         elif vote_winner and vote_winner == heal_winner:
-            # Someone was saved by medic!
             try:
                 saved_name = self.player_names.get(vote_winner, vote_winner)
                 save_narrative = self.narrator_service.generate_save_narrative(
@@ -454,12 +518,6 @@ class GameManager:
 
         self._reset_votes()
 
-        try:
-            day_narrative = self.narrator_service.generate_phase_transition("night", "day")
-            await self._send_narrator_message(day_narrative)
-        except Exception:
-            await self._send_narrator_message("Dawn breaks over the troubled town as the residents emerge from their homes...")
-
         self.next_phase_timestamp = (datetime.now(tz=timezone.utc) + timedelta(
             seconds=self.day_duration_s
         )).timestamp()
@@ -472,17 +530,18 @@ class GameManager:
             )
         )
         await self._sync_game_state()
+
+        try:
+            day_narrative = self.narrator_service.generate_phase_transition("night", "day")
+            await self._send_narrator_message(day_narrative)
+        except Exception:
+            await self._send_narrator_message("Dawn breaks over the troubled town as the residents emerge from their homes...")
+
         await self._check_game_over()
 
     async def _end_day(self):
         self.game_state.end_day()
         self._reset_votes()
-
-        try:
-            voting_narrative = self.narrator_service.generate_phase_transition("day", "voting")
-            await self._send_narrator_message(voting_narrative)
-        except Exception:
-            await self._send_narrator_message("The sun reaches its zenith as heated discussions fill the town square. The time for words has passed - now comes the moment of terrible decision.")
 
         self.next_phase_timestamp = (datetime.now(tz=timezone.utc) + timedelta(
             seconds=self.vote_duration_s
@@ -496,6 +555,12 @@ class GameManager:
             )
         )
         await self._sync_game_state()
+
+        try:
+            voting_narrative = self.narrator_service.generate_phase_transition("day", "voting")
+            await self._send_narrator_message(voting_narrative)
+        except Exception:
+            await self._send_narrator_message("The sun reaches its zenith as heated discussions fill the town square. The time for words has passed - now comes the moment of terrible decision.")
 
     async def _end_voting(self):
         vote_winner = self._get_vote_winner()
@@ -569,11 +634,17 @@ class GameManager:
                 self.game_state.players[uuid]["role"] = Role.INNOCENT
 
     async def _tick(self):
+        current_time = datetime.now(tz=timezone.utc).timestamp()
+
         if self.lobby and len(self.players) < 4:
             self.next_phase_timestamp = (datetime.now(tz=timezone.utc) + timedelta(
                 seconds=self.lobby_duration_s
             )).timestamp()
-        elif self.next_phase_timestamp <= datetime.now(tz=timezone.utc).timestamp():
+        elif self.narrator_active:
+            self.logger.debug("🎭 Timer paused - narrator is active")
+            await self._sync_game_state()
+            return
+        elif self.next_phase_timestamp <= current_time:
             if self.lobby:
                 await self._end_lobby()
             elif self.game_state.phase == Phase.CHARACTER_INTRO:
@@ -586,7 +657,9 @@ class GameManager:
                 await self._end_voting()
             elif self.game_state.phase == Phase.ENDED:
                 await self._restart_game()
-        await self._sync_game_state()
+
+        if not self.narrator_active:
+            await self._sync_game_state()
 
     async def _receive_vote(self, voter: PlayerAdapter, vote: Vote | NightAction):
         payload = vote.payload
@@ -650,6 +723,8 @@ class GameManager:
         )
 
     async def receive_event(self, event: GameEvent, player: PlayerAdapter):
+        self._ensure_tick_scheduler()
+
         match event:
             case PlayerJoin(type="player.join", payload=payload):
                 self.add_player(payload.player_id, payload.name, player)
@@ -730,6 +805,8 @@ class GameManager:
                 )
             case OpeningStoryRequest(type="opening.story_request"):
                 await self.send_opening_story()
+            case NarratorFinished(payload=payload):
+                self.logger.debug(f"🎭 Ignoring narrator finished event from {payload.player_id}")
             case _:
                 await player.receive_event(
                     ActionAck(
@@ -740,4 +817,3 @@ class GameManager:
                     )
                 )
 
-        await self._tick()
