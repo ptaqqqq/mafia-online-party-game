@@ -147,8 +147,30 @@ class GameManager:
 
     def _calculate_narrator_duration(self, text: str) -> float:
         """Calculate how long narrator animation should take"""
-        duration = 1.0
-        self.logger.info(f"🎭 Narrator duration: {len(text)} chars, fixed={duration}s")
+        # 40ms per character + 3 seconds pause after animation
+        char_count = len(text)
+        animation_time = (char_count * 40) / 1000  # 40ms per character in seconds
+        pause_time = 3.0  # 3 seconds pause after animation
+        total_duration = animation_time + pause_time
+
+        # Minimum 5 seconds, maximum 20 seconds
+        duration = max(5.0, min(20.0, total_duration))
+
+        self.logger.info(f"🎭 Narrator duration: {char_count} chars, animation={animation_time:.1f}s, pause={pause_time}s, total={duration:.1f}s")
+        return duration
+
+    def _calculate_profile_duration(self, description: str) -> float:
+        """Calculate how long profile animation should take"""
+        # 40ms per character + 3 seconds pause after animation
+        char_count = len(description)
+        animation_time = (char_count * 40) / 1000  # 40ms per character in seconds
+        pause_time = 3.0  # 3 seconds pause after animation
+        total_duration = animation_time + pause_time
+
+        # Minimum 8 seconds, maximum 25 seconds for profiles
+        duration = max(8.0, min(25.0, total_duration))
+
+        self.logger.info(f"🎭 Profile duration: {char_count} chars, animation={animation_time:.1f}s, pause={pause_time}s, total={duration:.1f}s")
         return duration
 
     async def _send_narrator_message(self, text: str):
@@ -283,6 +305,9 @@ class GameManager:
             if index > 1:
                 await asyncio.sleep(1)
 
+            # Calculate duration based on description length
+            profile_duration = self._calculate_profile_duration(profiles.description)
+
             payload = CharacterProfilePayload(
                 player_id=profiles.player_id,
                 name=profiles.name,
@@ -298,9 +323,9 @@ class GameManager:
                     payload=payload
                 )
             )
-            
-            self.logger.info(f"Showed profile {index}/{len(self.character_profiles)}: {profiles.name} {profiles.profession}")
-            await asyncio.sleep(3)
+
+            self.logger.info(f"Showed profile {index}/{len(self.character_profiles)}: {profiles.name} {profiles.profession} (duration: {profile_duration:.1f}s)")
+            await asyncio.sleep(profile_duration)
 
         await self._broadcast(
             ProfilesComplete(
