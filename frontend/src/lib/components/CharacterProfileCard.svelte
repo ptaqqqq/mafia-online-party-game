@@ -1,8 +1,8 @@
 <script>
   import AnimatedText from './AnimatedText.svelte';
 
-  let { profile = null, visible = false, currentIndex = 1, totalCount = 6 } = $props();
-  
+  let { profile = null, visible = false, currentIndex = 1, totalCount = 6, onProfileComplete = null } = $props();
+
   let cardElement = $state();
   let animationClass = $state('');
 
@@ -16,6 +16,13 @@
       animationClass = 'fade-out';
     }
   });
+
+  function handleAnimationComplete() {
+    console.log('🎭 Profile animation completed, calling callback...');
+    if (onProfileComplete) {
+      onProfileComplete();
+    }
+  }
 </script>
 
 {#if visible && profile}
@@ -43,7 +50,7 @@
         </h3>
 
         <div class="profile-description">
-          <AnimatedText text={profile?.description || ''} />
+          <AnimatedText text={profile?.description || ''} speed={40} onAnimationComplete={handleAnimationComplete} />
         </div>
       </div>
       
