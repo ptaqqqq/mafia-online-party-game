@@ -138,11 +138,21 @@ class NarratorMessagePayload(CamelModel):
     timestamp: float = Field(
         ..., description="When this message was sent (Unix timestamp)"
     )
+    duration: float = Field(..., description="Total animation duration in seconds")
 
 
 class NarratorMessage(GameEvent):
     type: Literal["narrator.message"]
     payload: NarratorMessagePayload
+
+
+class NarratorFinishedPayload(CamelModel):
+    player_id: str = Field(..., description="UUID of the player reporting narrator finished")
+
+
+class NarratorFinished(GameEvent):
+    type: Literal["narrator.finished"]
+    payload: NarratorFinishedPayload
 
 
 class OpeningStoryRequest(GameEvent):
@@ -170,6 +180,7 @@ class GameStateSyncPayload(CamelModel):
         ..., description="Current game phase"
     )
     phase_ends_at: float = Field(..., description="When this phase ends (Unix timestamp)")
+    narrator_active: bool = Field(False, description="Whether narrator is currently active (timer paused)")
     votes: Optional[Dict[str, str]] = Field(
         None, description="Maps voter: target during voting phase"
     )

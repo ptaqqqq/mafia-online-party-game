@@ -96,7 +96,7 @@ class NarratorService:
 
             response = self.llm_client.generate_text(
                 prompt=prompt,
-                max_tokens=250,  # Increased for richer narratives
+                max_tokens=250,
                 temperature=0.8
             )
             
@@ -157,7 +157,7 @@ class NarratorService:
 
             response = self.llm_client.generate_text(
                 prompt=prompt,
-                max_tokens=200,  # Increased for richer narratives
+                max_tokens=200,
                 temperature=0.7
             )
             
@@ -171,7 +171,6 @@ class NarratorService:
             
         except Exception as e:
             logger.error(f"Failed to generate death narrative: {str(e)}")
-            # Rich fallback death narratives - instant and atmospheric
             if killer_role == "mafia":
                 return f"As dawn broke over the town square, {victim_name} was discovered motionless, their secrets forever silenced by the shadows that prowl these streets. The town mourns another soul claimed by the darkness."
             else:
@@ -219,7 +218,7 @@ class NarratorService:
 
             response = self.llm_client.generate_text(
                 prompt=prompt,
-                max_tokens=200,  # Increased for richer narratives
+                max_tokens=200,
                 temperature=0.7
             )
             
@@ -299,7 +298,6 @@ class NarratorService:
             Transition narrative text
         """
         try:
-            # Mapowanie faz na opisy
             phase_descriptions = {
                 "night": "darkness falls and the town sleeps uneasily",
                 "day": "dawn breaks and the townspeople gather",
@@ -333,7 +331,6 @@ class NarratorService:
                 temperature=0.6
             )
             
-            # Aktualizuj kontekst
             if to_phase == "day":
                 self.game_context.day_count += 1
                 
@@ -347,7 +344,6 @@ class NarratorService:
             
         except Exception as e:
             logger.error(f"Failed to generate phase transition: {str(e)}")
-            # Rich fallback transitions - instant and atmospheric
             fallbacks = {
                 "night_to_day": "As the first pale light of dawn creeps over the town, the shadows retreat reluctantly, leaving behind whispers of secrets that linger in the crisp morning air.",
                 "day_to_voting": "The sun reaches its zenith as heated discussions fill the town square. The time for words has passed - now comes the moment of terrible decision.",

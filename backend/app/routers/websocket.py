@@ -13,6 +13,7 @@ from schemas.game import (
     ActionAckPayload,
     GameEvent,
     GameStateRequest,
+    NarratorFinished,
     NightAction,
     OpeningStoryRequest,
     PlayerJoin,
@@ -77,6 +78,8 @@ async def websocket_endpoint(ws: WebSocket, room_id: str):
                         event = GameStateRequest.model_validate(msg)
                     case "opening.story_request":
                         event = OpeningStoryRequest.model_validate(msg)
+                    case "narrator.finished":
+                        event = NarratorFinished.model_validate(msg)
                     case _:
                         raise ValidationError
                 await room_game_managers[room_id].receive_event(

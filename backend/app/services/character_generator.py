@@ -89,7 +89,7 @@ class CharacterGenerator:
             logger.info(f"Generating profile for {name} - {profession}")
             response = self.llm_client.generate_text(
                 prompt,
-                max_tokens=300,  # Increased for richer descriptions
+                max_tokens=300,
                 temperature=0.8
             )
             profile = self._parse_llm_response(response, player_id, name, profession)
