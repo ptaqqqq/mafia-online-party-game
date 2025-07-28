@@ -13,7 +13,9 @@ from schemas.game import (
     ActionAckPayload,
     GameEvent,
     GameStateRequest,
+    NarratorFinished,
     NightAction,
+    OpeningStoryRequest,
     PlayerJoin,
     PlayerLeave,
     PlayerLeavePayload,
@@ -34,8 +36,9 @@ class WebSocketPlayerAdapter(PlayerAdapter):
     async def receive_event(self, event: GameEvent):
         try:
             if self.open:
-                logging.info(f"Sending event {event.model_dump_json()}")
-                await self.ws.send_json(event.model_dump())
+                json_data = event.model_dump_json()
+                logging.info(f"Sending event {json_data}")
+                await self.ws.send_text(json_data)
         except (WebSocketDisconnect, RuntimeError) as e:
             logging.warning(f"{e}")
             self.open = False
@@ -73,6 +76,10 @@ async def websocket_endpoint(ws: WebSocket, room_id: str):
                         event = SendMessage.model_validate(msg)
                     case "game.sync_request":
                         event = GameStateRequest.model_validate(msg)
+                    case "opening.story_request":
+                        event = OpeningStoryRequest.model_validate(msg)
+                    case "narrator.finished":
+                        event = NarratorFinished.model_validate(msg)
                     case _:
                         raise ValidationError
                 await room_game_managers[room_id].receive_event(

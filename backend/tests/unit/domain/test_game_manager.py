@@ -118,3 +118,13 @@ def test_send_message_in_lobby_and_day(gm_two_players):
 
     assert ack
     assert not any(isinstance(e, MessageReceived) for e in p2.events)
+
+def test_assign_roles_with_medic(monkeypatch, gm):
+    for uid in ['u1', 'u2', 'u3', 'u4', 'u5']:
+        gm.add_player(uid, uid, DummyPlayer())
+    monkeypatch.setattr('app.domain.game_manager.random.sample', lambda lst, k: lst[:k])
+    gm._assign_roles_randomly()
+    roles = [gm.game_state.players[uid]['role'] for uid in ['u1', 'u2', 'u3', 'u4', 'u5']]
+    assert roles[:2] == [Role.MAFIA, Role.MAFIA]
+    assert Role.MEDIC in roles[2:]
+    assert Role.INNOCENT in roles[2:]
