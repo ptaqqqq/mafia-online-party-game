@@ -4,24 +4,18 @@ services:
       context: backend
       target: builder
     container_name: mafia-online-party-game-fastapi
+    image: mafia-online-party-game-api
     ports:
       - '${BACKEND_PORT}:8000'
-    volumes:
-      - ./backend:/build
-    environment:
-      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
     restart: "no"
   web:
     build:
       context: frontend
       dockerfile: Dockerfile
-      target: development
+      target: runtime
     container_name: mafia-online-party-game-web
+    image: mafia-online-party-game-web
     ports:
-      - "${FRONTEND_PORT}:5173"
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
+      - "${FRONTEND_PORT}:3000"
     environment:
-      NODE_ENV: development
-      VITE_WEBSOCKET_URL: ${VITE_WEBSOCKET_URL}
+      NODE_ENV: production
