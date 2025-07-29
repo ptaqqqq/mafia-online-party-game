@@ -21,7 +21,7 @@
    */
   function formatDuration(ms) {
     if (isNaN(ms) || ms === null || ms === undefined) {
-      console.error(`🕐 formatDuration: Invalid ms value: ${ms}`);
+      console.error(`formatDuration: Invalid ms value: ${ms}`);
       return "00:00";
     }
 
@@ -75,7 +75,7 @@
   let phaseMillisecondsLeft = $derived.by(() => {
     // Simple validation - just check if numbers exist and are valid
     if (!phaseEnd || isNaN(phaseEnd) || !now || isNaN(now)) {
-      console.warn(`⚠️ Invalid values: phaseEnd=${phaseEnd}, now=${now}`);
+      console.warn(`Invalid values: phaseEnd=${phaseEnd}, now=${now}`);
       return 30000; // 30 seconds fallback
     }
 

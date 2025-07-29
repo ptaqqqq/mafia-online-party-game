@@ -11,7 +11,7 @@ Gather at least four people, join the same lobby with a code, and have fun toget
 
 ### Play online
 
-<https://mafia.ptaqqqq.hackclub.app>
+<https://mafia.thetryhard.hackclub.app>
 
 ### Self-host
 
