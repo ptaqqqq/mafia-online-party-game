@@ -4,7 +4,8 @@ Online Mafia (also known as Werewolf) party game.
 
 Gather at least four people, join the same lobby with a code, and have fun together, no matter where you are!
 
-![Screenshot of the game during night phase](https://hc-cdn.hel1.your-objectstorage.com/s/v3/ff3ecce10415368d3d0ed01a4118a6ac1a9843e1_image.png)
+![Screenshot of the game homepage](https://i.imgur.com/anaFUDq.jpeg)
+![Screenshot of the game during night - medic](https://i.imgur.com/SNxtYhS.png)
 
 ## Usage
 
