@@ -7,6 +7,8 @@ services:
     image: mafia-online-party-game-api
     ports:
       - '${BACKEND_PORT}:8000'
+    environment:
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY}
     restart: "no"
   web:
     build:
