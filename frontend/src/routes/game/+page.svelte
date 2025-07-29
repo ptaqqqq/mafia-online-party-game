@@ -279,7 +279,13 @@ function showAlert(message, timeout = 3000) {
   let userDisplayNames = $state({});
 
   function connect() {
-    ws = new WebSocket(`/ws/${lobbyCode}`);
+    // Use environment variable for WebSocket URL in production, fallback to relative path for development
+    const wsUrl = import.meta.env.VITE_WEBSOCKET_URL
+      ? `${import.meta.env.VITE_WEBSOCKET_URL}/ws/${lobbyCode}`
+      : `/ws/${lobbyCode}`;
+
+    console.log('Connecting to WebSocket:', wsUrl);
+    ws = new WebSocket(wsUrl);
 
     ws.onopen = () => {
       console.log('WebSocket connected');

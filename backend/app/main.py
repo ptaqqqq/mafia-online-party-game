@@ -10,7 +10,12 @@ app = FastAPI()
 # Configure CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://mafia-llm.ptaqqqq.hackclub.app"],  # In production, specify exact origins
+    allow_origins=[
+        "https://mafia.thetryhard.hackclub.app",  # Production frontend domain
+        "https://mafia-llm.ptaqqqq.hackclub.app",  # Alternative domain
+        "http://localhost:5173",  # Development frontend
+        "http://localhost:3000",  # Production frontend local
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

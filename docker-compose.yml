@@ -13,6 +13,8 @@ services:
       context: frontend
       dockerfile: Dockerfile
       target: runtime
+      args:
+        VITE_WEBSOCKET_URL: ${VITE_WEBSOCKET_URL}
     container_name: mafia-online-party-game-web
     image: mafia-online-party-game-web
     ports:
