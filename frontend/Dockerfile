@@ -6,6 +6,11 @@ COPY package*.json ./
 RUN npm ci
 
 COPY . .
+
+# Build arguments for environment variables
+ARG VITE_WEBSOCKET_URL
+ENV VITE_WEBSOCKET_URL=$VITE_WEBSOCKET_URL
+
 RUN npm run build
 
 FROM node:24-slim AS runtime
