@@ -9,10 +9,6 @@ Gather at least four people, join the same lobby with a code, and have fun toget
 
 ## Usage
 
-### Play online
-
-<https://mafia.thetryhard.hackclub.app>
-
 ### Self-host
 
 Put this in `.env`:
@@ -24,6 +20,8 @@ VITE_WEBSOCKET_URL=ws://localhost:8000
 ```
 
 Run `docker compose up --build`.
+
+## Shipwrecked
 
 <div align="center">
   <a href="https://shipwrecked.hackclub.com/?t=ghrm" target="_blank">
